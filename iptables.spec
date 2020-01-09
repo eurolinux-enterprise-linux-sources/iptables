@@ -3,7 +3,7 @@
 Name: iptables
 Summary: Tools for managing Linux kernel packet filtering capabilities
 Version: 1.4.7
-Release: 16%{?dist}
+Release: 19%{?dist}
 Source: http://www.netfilter.org/projects/iptables/files/%{name}-%{version}.tar.bz2
 Source1: iptables.init
 Source2: iptables-config
@@ -311,6 +311,16 @@ fi
 %{_libdir}/pkgconfig/xtables.pc
 
 %changelog
+* Mon Apr 16 2018 Phil Sutter <psutter@redhat.com> - 1.4.7-19
+- Fix typo in changelog (rhbz#1459673)
+
+* Fri Apr 13 2018 Phil Sutter <psutter@redhat.com> - 1.4.7-18
+- Ignore files not suffixed '.conf' in /etc/sysctl.d (rhbz#1459673)
+
+* Fri Nov 17 2017 Phil Sutter <psutter@redhat.com> - 1.4.7-17
+- Include /etc/sysctl.d when searching for settings to apply (rhbz#1459673)
+- Ignore security table when setting chain policies (rhbz#1210563)
+
 * Tue Mar 26 2015 Thomas Woerner <twoerner@redhat.com> 1.4.7-16
 - Fixed ressource leak in libiptc found by coverity (rhbz#1088361)
 - Copy custom plugins also for releases up to 14 (rhbz#1088400)

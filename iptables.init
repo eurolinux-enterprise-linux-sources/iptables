@@ -170,6 +170,9 @@ set_policy() {
 		    && $IPTABLES -t mangle -P FORWARD $policy \
 		    || let ret+=1
 		;;
+	    security)
+		# Ignore the security table
+		;;
 	    *)
 	        let ret+=1
 		;;
@@ -187,7 +190,7 @@ load_sysctl() {
         echo -n $"Loading sysctl settings: "
         ret=0
         for item in $IPTABLES_SYSCTL_LOAD_LIST; do
-            fgrep $item /etc/sysctl.conf | sysctl -p - >/dev/null
+            fgrep -hs $item /etc/sysctl.conf /etc/sysctl.d/*.conf | sysctl -p - >/dev/null
             let ret+=$?;
         done
         [ $ret -eq 0 ] && success || failure
