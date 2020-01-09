@@ -3,7 +3,7 @@
 Name: iptables
 Summary: Tools for managing Linux kernel packet filtering capabilities
 Version: 1.4.7
-Release: 9%{?dist}
+Release: 11%{?dist}
 Source: http://www.netfilter.org/projects/iptables/files/%{name}-%{version}.tar.bz2
 Source1: iptables.init
 Source2: iptables-config
@@ -14,6 +14,9 @@ Patch7: iptables-1.4.7-tproxy.patch
 Patch8: iptables-1.4.7-xt_AUDIT_v2.patch
 Patch9: iptables-1.4.7-opt_parser_v2.patch
 Patch10: iptables-1.4.7-chain_maxnamelen.patch
+# https://bugzilla.redhat.com/show_bug.cgi?id=845435 "--queue-bypass" backport
+Patch11: iptables-1.4.7-xt_NFQUEUE.patch
+Patch12: iptables-1.4.7-rhbz_983198.patch
 Group: System Environment/Base
 URL: http://www.netfilter.org/
 BuildRoot: %(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
@@ -73,11 +76,17 @@ stable and may change with every new version. It is therefore unsupported.
 %patch8 -p1 -b .xt_AUDIT_v2
 %patch9 -p1 -b .opt_parser_v2
 %patch10 -p1 -b .chain_maxnamelen
+%patch11 -p1 -b .xt_NFQUEUE
+%patch12 -p1 -b .rhbz_983198
 cp %{SOURCE3} extensions/
 
 %build
+#
+# Packges other than 1.4.7 need to add this to the configure call:
+# --with-xtlibdir=/%{_lib}/xtables-%{version}
+#
 CFLAGS="$RPM_OPT_FLAGS -fno-strict-aliasing" \
-./configure --enable-devel --enable-libipq --bindir=/bin --sbindir=/sbin --sysconfdir=/etc --libdir=/%{_lib} --libexecdir=/%{_lib} --mandir=%{_mandir} --includedir=%{_includedir} --with-xtlibdir=/%{_lib}/xtables-%{version} --with-kernel=/usr --with-kbuild=/usr --with-ksource=/usr
+./configure --enable-devel --enable-libipq --bindir=/bin --sbindir=/sbin --sysconfdir=/etc --libdir=/%{_lib} --libexecdir=/%{_lib} --mandir=%{_mandir} --includedir=%{_includedir} --with-kernel=/usr --with-kbuild=/usr --with-ksource=/usr
 
 # do not use rpath
 sed -i 's|^hardcode_libdir_flag_spec=.*|hardcode_libdir_flag_spec=""|g' libtool
@@ -143,10 +152,19 @@ ln -s libxtables.so.4.0.0-%{version} libxtables.so.4-%{version}
 %clean
 rm -rf %{buildroot}
 
+%pre
+# if /%{_lib}/xtables is a symlink, remove it.
+if [ $1 -gt 1 ]; then
+   [ -h /%{_lib}/xtables ] && rm /%{_lib}/xtables || :
+fi
 
 %post
 /sbin/ldconfig
 /sbin/chkconfig --add iptables
+#
+# Packges other than 1.4.7 need to add this to the alternatives call:
+# --slave /%{_lib}/xtables lib-xtables.%{_arch} /%{_lib}/xtables-%{version} \
+#
 %{_sbindir}/alternatives --install /sbin/iptables iptables.%{_arch} /sbin/iptables-%{version} 90 \
         --slave /sbin/iptables-multi sbin-iptables-multi.%{_arch} /sbin/iptables-multi-%{version} \
         --slave /sbin/iptables-restore sbin-iptables-restore.%{_arch}  /sbin/iptables-restore-%{version} \
@@ -156,7 +174,6 @@ rm -rf %{buildroot}
         --slave %{_mandir}/man8/iptables-save.8.gz man-iptables-save.%{_arch} %{_mandir}/man8/iptables-save-%{version}.8.gz \
         --slave %{_mandir}/man8/iptables-xml.8.gz man-iptables-xml.%{_arch} %{_mandir}/man8/iptables-xml-%{version}.8.gz \
         --slave %{_mandir}/man8/iptables.8.gz man-iptables.%{_arch} %{_mandir}/man8/iptables-%{version}.8.gz \
-        --slave /%{_lib}/xtables lib-xtables.%{_arch} /%{_lib}/xtables-%{version} \
         --slave /%{_lib}/libip4tc.so.0 libip4tc0.%{_arch} /%{_lib}/libip4tc.so.0-%{version} \
         --slave /%{_lib}/libip4tc.so.0.0.0 libip4tc000.%{_arch} /%{_lib}/libip4tc.so.0.0.0-%{version} \
         --slave /%{_lib}/libip6tc.so.0 libip6tc0.%{_arch} /%{_lib}/libip6tc.so.0-%{version} \
@@ -231,9 +248,18 @@ fi
 /sbin/iptables*-%{version}
 /bin/iptables-xml-%{version}
 %{_mandir}/man8/iptables*-%{version}.8*
-%dir /%{_lib}/xtables-%{version}
-/%{_lib}/xtables-%{version}/libipt*
-/%{_lib}/xtables-%{version}/libxt*
+#
+# Packges other than 1.4.7 need to change these lines:
+# -%dir /%{_lib}/xtables
+# -/%{_lib}/xtables/libipt*
+# -/%{_lib}/xtables/libxt*
+# +%dir /%{_lib}/xtables-%{version}
+# +/%{_lib}/xtables-%{version}/libipt*
+# +/%{_lib}/xtables-%{version}/libxt*
+#
+%dir /%{_lib}/xtables
+/%{_lib}/xtables/libipt*
+/%{_lib}/xtables/libxt*
 /%{_lib}/libip*tc.so.*-%{version}
 /%{_lib}/libipq.so.*-%{version}
 /%{_lib}/libxtables.so.*-%{version}
@@ -244,7 +270,12 @@ fi
 %config(noreplace) %attr(0600,root,root) /etc/sysconfig/ip6tables-config
 /sbin/ip6tables*-%{version}
 %{_mandir}/man8/ip6tables*-%{version}.8*
-/%{_lib}/xtables-%{version}/libip6t*
+#
+# Packges other than 1.4.7 need to change these lines:
+# -/%{_lib}/xtables/libip6t*
+# +/%{_lib}/xtables-%{version}/libip6t*
+#
+/%{_lib}/xtables/libip6t*
 
 %files devel
 %defattr(-,root,root)
@@ -266,6 +297,23 @@ fi
 %{_libdir}/pkgconfig/xtables.pc
 
 %changelog
+* Tue Sep 17 2013 Thomas Woerner <twoerner@redhat.com> 1.4.7-11
+- fixed shutdown hang if root filesystem is network based (rhbz#1007632)
+  Thanks to Rodrigo A B Freire for the patch
+
+* Wed Aug 14 2013 Thomas Woerner <twoerner@redhat.com> 1.4.7-10
+- New reload action for ip*tables services (rhbz#928812)
+  It tries to reload the firewall rules from /etc/sysconfig/ip*tables. If this
+  failes, it does not load the fallbacks and the old firewall rules are still
+  there.
+- Use /lib*/xtables without version and not linked by alternatives again for 
+  compatibility to older versions (rhbz#924362)
+  The symlink for /lib*/xtables with the previous version will be cleaned up
+  in a pre script.
+- Backport of --queue-bypass (rhbz#845435)
+  Thanks to Florian Westphal and kay
+- Make ip*tables-save consistent to man page (rhbz#983198)
+
 * Wed Oct 31 2012 Thomas Woerner <twoerner@redhat.com> 1.4.7-9
 - make alternatives names arch dependant for multilib (rhbz#860148)
 - added virtual provides for base libraries to be able to resolve library file requires
