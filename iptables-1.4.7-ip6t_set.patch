@@ -1,0 +1,381 @@
+diff -up iptables-1.4.7/extensions/libip6t_set.c.ip6t_set iptables-1.4.7/extensions/libip6t_set.c
+--- iptables-1.4.7/extensions/libip6t_set.c.ip6t_set	2014-08-26 15:55:53.450854299 +0200
++++ iptables-1.4.7/extensions/libip6t_set.c	2014-08-28 15:20:54.753123640 +0200
+@@ -0,0 +1,159 @@
++/* Copyright (C) 2000-2002 Joakim Axelsson <gozem@linux.nu>
++ *                         Patrick Schaaf <bof@bof.de>
++ *                         Martin Josefsson <gandalf@wlug.westbo.se>
++ * Copyright (C) 2003-2004 Jozsef Kadlecsik <kadlec@blackhole.kfki.hu>
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.  
++ */
++
++/* Shared library add-on to iptables to add IP set matching. */
++#include <stdio.h>
++#include <netdb.h>
++#include <string.h>
++#include <stdlib.h>
++#include <getopt.h>
++#include <ctype.h>
++#include <errno.h>
++
++#include <xtables.h>
++#include <linux/netfilter_ipv6/ip6t_set.h>
++#include "libip6t_set.h"
++
++static void set_help(void)
++{
++	printf("set match options:\n"
++	       " [!] --match-set name flags\n"
++	       "		 'name' is the set name from to match,\n" 
++	       "		 'flags' are the comma separated list of\n"
++	       "		 'src' and 'dst' specifications.\n");
++}
++
++static const struct option set_opts[] = {
++	{ .name = "match-set", .has_arg = true, .val = '1'},
++	{ .name = "set",       .has_arg = true, .val = '2'},
++	{ .name = NULL }
++};
++
++static void set_init(struct xt_entry_match *match)
++{
++	struct xt_set_info_match *info = 
++		(struct xt_set_info_match *) match->data;
++	
++
++	memset(info, 0, sizeof(struct xt_set_info_match));
++
++}
++
++static int set_parse(int c, char **argv, int invert, unsigned int *flags,
++                     const void *entry, struct xt_entry_match **match)
++{
++	struct xt_set_info_match *myinfo = 
++		(struct xt_set_info_match *) (*match)->data;
++	struct xt_set_info *info = &myinfo->match_set;
++
++	switch (c) {
++	case '2':
++#if 0
++		fprintf(stderr,
++			"--set option deprecated, please use --match-set\n");
++#endif
++	case '1':		/* --match-set <set> <flag>[,<flag> */
++		if (info->flags)
++			xtables_error(PARAMETER_PROBLEM,
++				   "--match-set can be specified only once");
++
++		xtables_check_inverse(optarg, &invert, &optind, 0, argv);
++		if (invert)
++			info->flags |= IPSET_INV_MATCH;
++
++		if (!argv[optind]
++		    || argv[optind][0] == '-'
++		    || argv[optind][0] == '!')
++			xtables_error(PARAMETER_PROBLEM,
++				   "--match-set requires two args.");
++
++		if (strlen(optarg) > IP_SET_MAXNAMELEN - 1)
++			xtables_error(PARAMETER_PROBLEM,
++				   "setname `%s' too long, max %d characters.",
++				   optarg, IP_SET_MAXNAMELEN - 1);
++
++		get_set_byname(optarg, info);
++		parse_bindings(argv[optind], info);
++		DEBUGP("parse: set index %u\n", info->index);
++		optind++;
++		
++		*flags = 1;
++		break;
++
++	default:
++		return 0;
++	}
++
++	return 1;
++}
++
++static void set_check(unsigned int flags)
++{
++	if (!flags)
++		xtables_error(PARAMETER_PROBLEM,
++			   "You must specify `--match-set' with proper arguments");
++	DEBUGP("final check OK\n");
++}
++
++static void
++print_match(const char *prefix, const struct xt_set_info *info)
++{
++        int i;
++        char setname[IP_SET_MAXNAMELEN];
++
++        get_set_byid(setname, info->index);
++        printf("%s%s %s",
++               (info->flags & IPSET_INV_MATCH) ? "! " : "",
++               prefix,
++               setname); 
++        for (i = 1; i <= info->dim; i++) {              
++                printf("%s%s",
++                       i == 1 ? " " : ",",
++                       info->flags & (1 << i) ? "src" : "dst");
++        }
++	printf(" ");
++}
++
++/* Prints out the matchinfo. */
++static void set_print(const void *ip, const struct xt_entry_match *match,
++                      int numeric)
++{
++	const struct xt_set_info_match *info = (const void *)match->data;
++
++	print_match("match-set", &info->match_set);
++}
++
++static void set_save(const void *ip, const struct xt_entry_match *match)
++{
++	const struct xt_set_info_match *info = (const void *)match->data;
++
++	print_match("--match-set", &info->match_set);
++}
++
++static struct xtables_match set_mt6_reg = {
++	.name		= "set",
++	.revision       = 1,
++	.version	= XTABLES_VERSION,
++	.family		= NFPROTO_IPV6,
++	.size		= XT_ALIGN(sizeof(struct xt_set_info_match)),
++	.userspacesize	= XT_ALIGN(sizeof(struct xt_set_info_match)),
++	.help		= set_help,
++	.init		= set_init,
++	.parse		= set_parse,
++	.final_check	= set_check,
++	.print		= set_print,
++	.save		= set_save,
++	.extra_opts	= set_opts,
++};
++
++void _init(void)
++{
++	xtables_register_match(&set_mt6_reg);
++}
+diff -up iptables-1.4.7/extensions/libip6t_set.h.ip6t_set iptables-1.4.7/extensions/libip6t_set.h
+--- iptables-1.4.7/extensions/libip6t_set.h.ip6t_set	2014-08-26 15:55:53.450854299 +0200
++++ iptables-1.4.7/extensions/libip6t_set.h	2014-08-26 15:55:53.450854299 +0200
+@@ -0,0 +1,124 @@
++#ifndef _LIBIP6T_SET_H
++#define _LIBIP6T_SET_H
++
++#include <unistd.h>
++#include <fcntl.h>
++#include <sys/types.h>
++#include <sys/socket.h>
++#include <errno.h>
++
++#ifdef DEBUG
++#define DEBUGP(x, args...) fprintf(stderr, x, ## args)
++#else
++#define DEBUGP(x, args...) 
++#endif
++
++static void
++parse_bindings(const char *opt_arg, struct xt_set_info *info)
++{
++	char *saved = strdup(opt_arg);
++	char *ptr, *tmp = saved;
++	
++        while (info->dim < IP_SET_MAX_BINDINGS && tmp != NULL) {
++		info->dim++;
++		ptr = strsep(&tmp, ",");
++		if (strncmp(ptr, "src", 3) == 0)
++			info->flags |= (1 << info->dim);
++		else if (strncmp(ptr, "dst", 3) != 0)
++			xtables_error(PARAMETER_PROBLEM,
++				   "You must specify (the comma separated list of) 'src' or 'dst'.");
++	}
++
++	if (tmp)
++		xtables_error(PARAMETER_PROBLEM,
++			   "Can't follow bindings deeper than %i.", 
++			   IP_SET_MAX_BINDINGS - 1);
++
++	free(saved);
++}
++
++static int get_version(unsigned *version)
++{
++	int res, sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_RAW);
++	struct ip_set_req_version req_version;
++	socklen_t size = sizeof(req_version);
++	
++	if (sockfd < 0)
++		xtables_error(OTHER_PROBLEM,
++			   "Can't open socket to ipset.\n");
++
++	if (fcntl(sockfd, F_SETFD, FD_CLOEXEC) == -1) {
++		xtables_error(OTHER_PROBLEM,
++			      "Could not set close on exec: %s\n",
++			      strerror(errno));
++	}
++
++	req_version.op = IP_SET_OP_VERSION;
++	res = getsockopt(sockfd, SOL_IP, SO_IP_SET, &req_version, &size);
++	if (res != 0)
++		xtables_error(OTHER_PROBLEM,
++			   "Kernel module ip_set is not loaded in.\n");
++
++	*version = req_version.version;
++	
++	return sockfd;
++}
++
++static void get_set_byname(const char *setname, struct xt_set_info *info)
++{
++	struct ip_set_req_get_set req;
++	socklen_t size = sizeof(struct ip_set_req_get_set);
++	int res, sockfd;
++
++	sockfd = get_version(&req.version);
++	req.op = IP_SET_OP_GET_BYNAME;
++	strncpy(req.set.name, setname, IP_SET_MAXNAMELEN);
++	req.set.name[IP_SET_MAXNAMELEN - 1] = '\0';
++	res = getsockopt(sockfd, SOL_IP, SO_IP_SET, &req, &size);
++	close(sockfd);
++
++	if (res != 0)
++		xtables_error(OTHER_PROBLEM,
++			   "Problem when communicating with ipset, errno=%d.\n",
++			   errno);
++	if (size != sizeof(struct ip_set_req_get_set))
++		xtables_error(OTHER_PROBLEM,
++			   "Incorrect return size from kernel during ipset lookup, "
++			   "(want %zu, got %zu)\n",
++			   sizeof(struct ip_set_req_get_set), (size_t)size);
++	if (req.set.index == IP_SET_INVALID_ID)
++		xtables_error(PARAMETER_PROBLEM,
++			   "Set %s doesn't exist.\n", setname);
++
++	info->index = req.set.index;
++}
++
++static void get_set_byid(char * setname, ip_set_id_t idx)
++{
++	struct ip_set_req_get_set req;
++	socklen_t size = sizeof(struct ip_set_req_get_set);
++	int res, sockfd;
++
++	sockfd = get_version(&req.version);
++	req.op = IP_SET_OP_GET_BYINDEX;
++	req.set.index = idx;
++	res = getsockopt(sockfd, SOL_IP, SO_IP_SET, &req, &size);
++	close(sockfd);
++
++	if (res != 0)
++		xtables_error(OTHER_PROBLEM,
++			   "Problem when communicating with ipset, errno=%d.\n",
++			   errno);
++	if (size != sizeof(struct ip_set_req_get_set))
++		xtables_error(OTHER_PROBLEM,
++			   "Incorrect return size from kernel during ipset lookup, "
++			   "(want %zu, got %zu)\n",
++			   sizeof(struct ip_set_req_get_set), (size_t)size);
++	if (req.set.name[0] == '\0')
++		xtables_error(PARAMETER_PROBLEM,
++			   "Set id %i in kernel doesn't exist.\n", idx);
++
++	strncpy(setname, req.set.name, IP_SET_MAXNAMELEN);
++}
++
++#endif /*_LIBIP6T_SET_H*/
+diff -up iptables-1.4.7/extensions/libip6t_set.man.ip6t_set iptables-1.4.7/extensions/libip6t_set.man
+--- iptables-1.4.7/extensions/libip6t_set.man.ip6t_set	2014-08-26 15:55:53.451854303 +0200
++++ iptables-1.4.7/extensions/libip6t_set.man	2014-08-26 15:55:53.451854303 +0200
+@@ -0,0 +1,23 @@
++This module matches IP sets which can be defined by ipset(8).
++.TP
++[\fB!\fP] \fB\-\-match\-set\fP \fIsetname\fP \fIflag\fP[\fB,\fP\fIflag\fP]...
++where flags are the comma separated list of
++.BR "src"
++and/or
++.BR "dst" 
++specifications and there can be no more than six of them. Hence the command
++.IP
++ iptables \-A FORWARD \-m set \-\-match\-set test src,dst
++.IP
++will match packets, for which (if the set type is ipportmap) the source
++address and destination port pair can be found in the specified set. If
++the set type of the specified set is single dimension (for example ipmap),
++then the command will match packets for which the source address can be
++found in the specified set. 
++.PP
++The option \fB\-\-match\-set\fR can be replaced by \fB\-\-set\fR if that does 
++not clash with an option of other extensions.
++.PP
++Use of -m set requires that ipset kernel support is provided. As standard
++kernels do not ship this currently, the ipset or Xtables-addons package needs
++to be installed.
+diff -up iptables-1.4.7/include/linux/netfilter_ipv6/ip6t_set.h.ip6t_set iptables-1.4.7/include/linux/netfilter_ipv6/ip6t_set.h
+--- iptables-1.4.7/include/linux/netfilter_ipv6/ip6t_set.h.ip6t_set	2014-08-26 15:55:53.451854303 +0200
++++ iptables-1.4.7/include/linux/netfilter_ipv6/ip6t_set.h	2014-08-28 15:14:23.554873362 +0200
+@@ -0,0 +1,59 @@
++#ifndef _IP6T_SET_H
++#define _IP6T_SET_H
++
++#include <linux/types.h>
++#include <linux/netfilter_ipv4/ip_set.h>
++#include <linux/netfilter/ipset/ip_set.h>
++
++/* Revision 0 interface: backward compatible with netfilter/iptables */
++
++/*
++ * Option flags for kernel operations (xt_set_info_v0)
++ */
++#define IPSET_SRC		0x01	/* Source match/add */
++#define IPSET_DST		0x02	/* Destination match/add */
++#define IPSET_MATCH_INV		0x04	/* Inverse matching */
++
++struct xt_set_info_v0 {
++	ip_set_id_t index;
++	union {
++		__u32 flags[IP_SET_MAX_BINDINGS + 1];
++		struct {
++			__u32 __flags[IP_SET_MAX_BINDINGS];
++			__u8 dim;
++			__u8 flags;
++		} compat;
++	} u;
++};
++
++/* match and target infos */
++struct xt_set_info_match_v0 {
++	struct xt_set_info_v0 match_set;
++};
++
++struct xt_set_info_target_v0 {
++	struct xt_set_info_v0 add_set;
++	struct xt_set_info_v0 del_set;
++};
++
++/* Revision 1: current interface to netfilter/iptables */
++
++#define IPSET_INV_MATCH 1
++
++struct xt_set_info {
++	ip_set_id_t index;
++	__u8 dim;
++	__u8 flags;
++};
++
++/* match and target infos */
++struct xt_set_info_match {
++	struct xt_set_info match_set;
++};
++
++struct xt_set_info_target {
++	struct xt_set_info add_set;
++	struct xt_set_info del_set;
++};
++
++#endif /*_IP6T_SET_H*/

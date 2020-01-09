@@ -3,7 +3,7 @@
 Name: iptables
 Summary: Tools for managing Linux kernel packet filtering capabilities
 Version: 1.4.7
-Release: 11%{?dist}
+Release: 14%{?dist}
 Source: http://www.netfilter.org/projects/iptables/files/%{name}-%{version}.tar.bz2
 Source1: iptables.init
 Source2: iptables-config
@@ -17,6 +17,7 @@ Patch10: iptables-1.4.7-chain_maxnamelen.patch
 # https://bugzilla.redhat.com/show_bug.cgi?id=845435 "--queue-bypass" backport
 Patch11: iptables-1.4.7-xt_NFQUEUE.patch
 Patch12: iptables-1.4.7-rhbz_983198.patch
+Patch13: iptables-1.4.7-ip6t_set.patch
 Group: System Environment/Base
 URL: http://www.netfilter.org/
 BuildRoot: %(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
@@ -78,6 +79,7 @@ stable and may change with every new version. It is therefore unsupported.
 %patch10 -p1 -b .chain_maxnamelen
 %patch11 -p1 -b .xt_NFQUEUE
 %patch12 -p1 -b .rhbz_983198
+%patch13 -p1 -b .ip6t_set
 cp %{SOURCE3} extensions/
 
 %build
@@ -199,7 +201,7 @@ exit 0
 %preun
 if [ "$1" = 0 ]; then
         /sbin/chkconfig --del iptables
-        %{_sbindir}/alternatives --remove iptables.%{_arch} /sbin/iptables-%{version}
+        %{_sbindir}/alternatives --remove iptables.%{_arch} /sbin/iptables-%{version} || :
 fi
 
 %triggerpostun -- iptables < 1.4.7-7
@@ -231,7 +233,7 @@ exit 0
 %preun ipv6
 if [ "$1" = 0 ]; then
         /sbin/chkconfig --del ip6tables
-        %{_sbindir}/alternatives --remove ip6tables.%{_arch} /sbin/ip6tables-%{version}
+        %{_sbindir}/alternatives --remove ip6tables.%{_arch} /sbin/ip6tables-%{version} || :
 fi
 
 %triggerpostun ipv6 -- iptables-ipv6 < 1.4.7-7
@@ -297,6 +299,17 @@ fi
 %{_libdir}/pkgconfig/xtables.pc
 
 %changelog
+* Thu Aug 28 2014 Thomas Woerner <twoerner@redhat.com> 1.4.7-14
+- fixed inversion issue with set match (rhbz#1132403)
+
+* Tue Aug 26 2014 Thomas Woerner <twoerner@redhat.com> 1.4.7-13
+- fixed ip6tables ipset dst error (rhbz#1132403)
+
+* Mon Jun 16 2014 Thomas Woerner <twoerner@redhat.com> 1.4.7-12
+- added ip6t_set (rhbz#1033270)
+- do not block uninstall on a failing alternatives --remove call in preun
+  (rhbz#1059214) (rhbz#1070123)
+
 * Tue Sep 17 2013 Thomas Woerner <twoerner@redhat.com> 1.4.7-11
 - fixed shutdown hang if root filesystem is network based (rhbz#1007632)
   Thanks to Rodrigo A B Freire for the patch
