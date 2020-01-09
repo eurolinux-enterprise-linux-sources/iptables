@@ -3,7 +3,7 @@
 Name: iptables
 Summary: Tools for managing Linux kernel packet filtering capabilities
 Version: 1.4.7
-Release: 14%{?dist}
+Release: 16%{?dist}
 Source: http://www.netfilter.org/projects/iptables/files/%{name}-%{version}.tar.bz2
 Source1: iptables.init
 Source2: iptables-config
@@ -17,7 +17,9 @@ Patch10: iptables-1.4.7-chain_maxnamelen.patch
 # https://bugzilla.redhat.com/show_bug.cgi?id=845435 "--queue-bypass" backport
 Patch11: iptables-1.4.7-xt_NFQUEUE.patch
 Patch12: iptables-1.4.7-rhbz_983198.patch
-Patch13: iptables-1.4.7-ip6t_set.patch
+Patch13: iptables-1.4.7-ipXt_set.patch
+Patch14: iptables-1.4.7-fix_dccp_types_print.patch
+Patch15: iptables-1.4.7-check_option.patch
 Group: System Environment/Base
 URL: http://www.netfilter.org/
 BuildRoot: %(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
@@ -79,7 +81,9 @@ stable and may change with every new version. It is therefore unsupported.
 %patch10 -p1 -b .chain_maxnamelen
 %patch11 -p1 -b .xt_NFQUEUE
 %patch12 -p1 -b .rhbz_983198
-%patch13 -p1 -b .ip6t_set
+%patch13 -p1 -b .ipXt_set
+%patch14 -p1 -b .fix_dccp_types_print
+%patch15 -p1 -b .check_option
 cp %{SOURCE3} extensions/
 
 %build
@@ -210,6 +214,14 @@ if [ -z "$iptables" -o "$iptables" == "/sbin/iptables-%{version}" ]; then
         %{_sbindir}/alternatives --set iptables.%{_arch} /sbin/iptables-%{version}
 fi
 
+%triggerpostun -- iptables < 1.4.7-15
+# copy plugins file over from the old package to the new one
+if [ -d /%{_lib}/xtables-1.4.7 ]; then
+	for i in /%{_lib}/xtables-1.4.7/*.so; do
+		cp -an "$i" /%{_lib}/xtables/
+	done
+fi
+
 %post ipv6
 /sbin/chkconfig --add ip6tables
 %{_sbindir}/alternatives --install /sbin/ip6tables ip6tables.%{_arch} /sbin/ip6tables-%{version} 90 \
@@ -299,6 +311,18 @@ fi
 %{_libdir}/pkgconfig/xtables.pc
 
 %changelog
+* Tue Mar 26 2015 Thomas Woerner <twoerner@redhat.com> 1.4.7-16
+- Fixed ressource leak in libiptc found by coverity (rhbz#1088361)
+- Copy custom plugins also for releases up to 14 (rhbz#1088400)
+
+* Tue Mar  3 2015 Thomas Woerner <twoerner@redhat.com> 1.4.7-15
+- Add message for init script error returns (rhbz#1081191)
+- Fix rule deletion of ipset matches (rhbz#1081422)
+- Add space after dccp types (rhbz#1084974)
+- Add -C option to check for existing rules (rhbz#1088361)
+- Copy custom plugins for updates from iptables < 1.4.7-10 (rhbz#1088400)
+- Enable the IPv6 set target (rhbz#1161330)
+
 * Thu Aug 28 2014 Thomas Woerner <twoerner@redhat.com> 1.4.7-14
 - fixed inversion issue with set match (rhbz#1132403)
 
