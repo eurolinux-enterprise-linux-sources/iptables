@@ -1,0 +1,61 @@
+From 12852e5c973ef9e5d33c1dc1a21c659f4dc6227b Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Fri, 11 May 2018 15:28:07 +0200
+Subject: [PATCH] extensions: libxt_tcpmss: Detect invalid ranges
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1128510
+Upstream Status: iptables commit dbbab0aa328f1
+
+commit dbbab0aa328f136502373a1031e64eb53fa113e5
+Author: Phil Sutter <phil@nwl.cc>
+Date:   Mon Oct 9 15:47:39 2017 +0200
+
+    extensions: libxt_tcpmss: Detect invalid ranges
+
+    Previously, an MSS range of e.g. 65535:1000 was silently accepted but
+    would then never match a packet since the kernel checks whether the MSS
+    value is greater than or equal to the first *and* less than or equal to
+    the second value.
+
+    Detect this as a parameter problem and update the man page accordingly.
+
+    Signed-off-by: Phil Sutter <phil@nwl.cc>
+    Signed-off-by: Pablo Neira Ayuso <pablo@netfilter.org>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ extensions/libxt_tcpmss.c   | 6 +++++-
+ extensions/libxt_tcpmss.man | 2 +-
+ 2 files changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/extensions/libxt_tcpmss.c b/extensions/libxt_tcpmss.c
+index c7c5971716294..bcd357aa3d8e2 100644
+--- a/extensions/libxt_tcpmss.c
++++ b/extensions/libxt_tcpmss.c
+@@ -27,8 +27,12 @@ static void tcpmss_parse(struct xt_option_call *cb)
+ 	xtables_option_parse(cb);
+ 	mssinfo->mss_min = cb->val.u16_range[0];
+ 	mssinfo->mss_max = mssinfo->mss_min;
+-	if (cb->nvals == 2)
++	if (cb->nvals == 2) {
+ 		mssinfo->mss_max = cb->val.u16_range[1];
++		if (mssinfo->mss_max < mssinfo->mss_min)
++			xtables_error(PARAMETER_PROBLEM,
++				      "tcpmss: invalid range given");
++	}
+ 	if (cb->invert)
+ 		mssinfo->invert = 1;
+ }
+diff --git a/extensions/libxt_tcpmss.man b/extensions/libxt_tcpmss.man
+index 8ee715cdbfb07..8253c363418f8 100644
+--- a/extensions/libxt_tcpmss.man
++++ b/extensions/libxt_tcpmss.man
+@@ -1,4 +1,4 @@
+ This matches the TCP MSS (maximum segment size) field of the TCP header.  You can only use this on TCP SYN or SYN/ACK packets, since the MSS is only negotiated during the TCP handshake at connection startup time.
+ .TP
+ [\fB!\fP] \fB\-\-mss\fP \fIvalue\fP[\fB:\fP\fIvalue\fP]
+-Match a given TCP MSS value or range.
++Match a given TCP MSS value or range. If a range is given, the second \fIvalue\fP must be greater than or equal to the first \fIvalue\fP.
+-- 
+2.17.0
+

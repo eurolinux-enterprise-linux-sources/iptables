@@ -7,11 +7,11 @@
 Name: iptables
 Summary: Tools for managing Linux kernel packet filtering capabilities
 Version: 1.4.21
-Release: 24%{?dist}
+Release: 28%{?dist}
 Source: http://www.netfilter.org/projects/iptables/files/%{name}-%{version}.tar.bz2
 Source1: iptables.init
 Source2: iptables-config
-Source3: iptables.service
+Source3: iptables.service.in
 Source4: iptables.save-legacy
 Source5: sysconfig_iptables
 Source6: sysconfig_ip6tables
@@ -33,6 +33,12 @@ Patch13: iptables-1.4.21-restore_support_acquiring_the_lock.patch
 Patch14: iptables-do_not_set_changed_for_check_options.patch
 Patch15: iptables-1.4.21-restore_version.patch
 Patch16: iptables-1.4.21-restore_wait_man.patch
+Patch17: extensions-libxt_tcpmss-Detect-invalid-ranges.patch
+Patch18: iptables-restore-save-exit-when-given-an-unknown-opt.patch
+Patch19: ip-6-tables-restore-Don-t-ignore-missing-wait-interv.patch
+Patch20: ip-6-tables-restore-Don-t-accept-wait-interval-witho.patch
+Patch21: utils-nfnl_osf-Fix-synopsis-in-help-text.patch
+Patch22: utils-Add-a-man-page-for-nfnl_osf.patch
 
 Group: System Environment/Base
 URL: http://www.netfilter.org/
@@ -115,6 +121,12 @@ Currently only provides nfnl_osf with the pf.os database.
 %patch14 -p1 -b .do_not_set_changed_for_check_options
 %patch15 -p1 -b .restore_version
 %patch16 -p1 -b .restore_wait_man
+%patch17 -p1 -b .tcpmss_detect_invalid_ranges
+%patch18 -p1 -b .exit_unknown_option
+%patch19 -p1 -b .require_wait_value
+%patch20 -p1 -b .wait_interval_needs_wait
+%patch21 -p1 -b .nfnl_osf_synopsis
+%patch22 -p1 -b .nfnl_osf_man_page
 
 %build
 # Since patches above touch configure.ac we must regen configure
@@ -164,8 +176,9 @@ sed -e 's;iptables;ip6tables;g' \
     -e 's;/usr/libexec/ip6tables;/usr/libexec/iptables;g' \
     -e 's;^\(After=.*\)$;\1 iptables.service;' \
     < %{SOURCE3} > ip6tables.service
-sed -i -e 's;^\(After=.*\)$;Before=ip6tables.service\n\1;' %{SOURCE3}
-install -c -m 644 %{SOURCE3} %{buildroot}/%{_unitdir}
+sed -e 's;^\(After=.*\)$;Before=ip6tables.service\n\1;' \
+    < %{SOURCE3} > iptables.service
+install -c -m 644 iptables.service %{buildroot}/%{_unitdir}
 install -c -m 644 ip6tables.service %{buildroot}/%{_unitdir}
 
 # install legacy actions for service command
@@ -273,9 +286,28 @@ done
 %{_sbindir}/nfnl_osf
 %dir %{_datadir}/xtables
 %{_datadir}/xtables/pf.os
+%{_mandir}/man8/nfnl_osf*
 
 
 %changelog
+* Tue Jun 05 2018 Phil Sutter - 1.4.21-28
+- Add nfnl_osf.8 man page (RHBZ#1487331)
+
+* Fri May 11 2018 Phil Sutter - 1.4.21-27
+- libxt_tcpmss: Detect invalid ranges (RHBZ#1128510)
+- ip(6)tables-save/restore: Exit if invalid option was given (RHBZ#1465078)
+- ip(6)tables-save/restore: Require value to -W option (RHBZ#1465078)
+- ip(6)tables-save/restore: Don't accept -W without -w (RHBZ#1465078)
+- Ignore security table when setting policies (RHBZ#1494012)
+- Fix spec file changing SRPM content (RHBZ#1531290)
+
+* Thu Mar 29 2018 Phil Sutter - 1.4.21-26
+- Avoid overwriting parent's return code (RHBZ#1560012)
+
+* Thu Mar 29 2018 Phil Sutter - 1.4.21-25
+- Fix for stopping iptables and ip6tables at the same time (RHBZ#1560012)
+- Propagate errors on service stop (RHBZ#1560012)
+
 * Fri Nov 17 2017 Phil Sutter - 1.4.21-24
 - Fix fgrep call over multiple files in iptables.init
 

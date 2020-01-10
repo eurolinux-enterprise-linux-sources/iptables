@@ -1,0 +1,42 @@
+From f5757357c0bb6b5df843d15b90f235190d3b4448 Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Fri, 11 May 2018 16:34:48 +0200
+Subject: [PATCH] ip{,6}tables-restore: Don't ignore missing wait-interval
+ value
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1465078
+Upstream Status: iptables commit 60e0ffd365a2d
+
+commit 60e0ffd365a2d936b3df13c1289b2ef57b756d92
+Author: Phil Sutter <phil@nwl.cc>
+Date:   Wed Sep 20 19:34:35 2017 +0200
+
+    ip{,6}tables-restore: Don't ignore missing wait-interval value
+
+    Passing -W without a value doesn't make sense so bail out if none was
+    given.
+
+    Signed-off-by: Phil Sutter <phil@nwl.cc>
+    Signed-off-by: Pablo Neira Ayuso <pablo@netfilter.org>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ iptables/xshared.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/iptables/xshared.c b/iptables/xshared.c
+index 3fbe3b1a99b77..b8a81fd968361 100644
+--- a/iptables/xshared.c
++++ b/iptables/xshared.c
+@@ -318,7 +318,7 @@ void parse_wait_interval(int argc, char *argv[], struct timeval *wait_interval)
+ 	else if (xs_has_arg(argc, argv))
+ 		arg = argv[optind++];
+ 	else
+-		return;
++		xtables_error(PARAMETER_PROBLEM, "wait interval value required");
+ 
+ 	ret = sscanf(arg, "%u", &usec);
+ 	if (ret == 1) {
+-- 
+2.17.0
+

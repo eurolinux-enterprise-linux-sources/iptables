@@ -1,0 +1,43 @@
+From 89c09c279e53abd66a7ca9b0dd8d2c2a5c8f2d9d Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Tue, 5 Jun 2018 14:49:54 +0200
+Subject: [PATCH 1/2] utils: nfnl_osf: Fix synopsis in help text
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1487331
+Upstream Status: iptables commit 1773dcaabb738
+
+commit 1773dcaabb73884666d30b926677f8232e5c04b3
+Author: Phil Sutter <phil@nwl.cc>
+Date:   Wed Sep 20 18:54:08 2017 +0200
+
+    utils: nfnl_osf: Fix synopsis in help text
+
+    * -d is optional
+    * -h is not really a flag, just anything not recognized triggers the
+      help output.
+    * That '<del rules>' bit is rather confusing than helpful.
+
+    Signed-off-by: Phil Sutter <phil@nwl.cc>
+    Signed-off-by: Pablo Neira Ayuso <pablo@netfilter.org>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ utils/nfnl_osf.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/utils/nfnl_osf.c b/utils/nfnl_osf.c
+index bb5f92dc6d0aa..972128f47ba04 100644
+--- a/utils/nfnl_osf.c
++++ b/utils/nfnl_osf.c
+@@ -438,7 +438,7 @@ int main(int argc, char *argv[])
+ 				break;
+ 			default:
+ 				fprintf(stderr,
+-					"Usage: %s -f fingerprints -d <del rules> -h\n",
++					"Usage: %s -f fingerprints [-d]\n",
+ 					argv[0]);
+ 				return -1;
+ 		}
+-- 
+2.17.0
+

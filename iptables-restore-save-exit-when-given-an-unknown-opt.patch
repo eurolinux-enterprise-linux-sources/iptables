@@ -1,0 +1,152 @@
+From 7450d63abf0608efba8d48858e54ff23f2179300 Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Fri, 11 May 2018 15:29:24 +0200
+Subject: [PATCH] iptables-restore/save: exit when given an unknown option
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1465078
+Upstream Status: iptables commit d89dc47ab3875
+Conflicts:
+ * Context changes in ip{6,}tables-restore.c
+ * xtables-{save,restore}.c not present here.
+
+commit d89dc47ab3875f6fe6679cebceccd2000bf81b8e
+Author: Vincent Bernat <vincent@bernat.im>
+Date:   Sat Apr 15 12:16:47 2017 +0200
+
+    iptables-restore/save: exit when given an unknown option
+
+    When an unknown option is given, iptables-restore should exit instead of
+    continue its operation. For example, if `--table` was misspelled, this
+    could lead to an unwanted change. Moreover, exit with a status code of
+    1. Make the same change for iptables-save.
+
+    OTOH, exit with a status code of 0 when requesting help.
+
+    Signed-off-by: Vincent Bernat <vincent@bernat.im>
+    Signed-off-by: Pablo Neira Ayuso <pablo@netfilter.org>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ iptables/ip6tables-restore.c | 10 +++++-----
+ iptables/ip6tables-save.c    |  4 ++++
+ iptables/iptables-restore.c  | 10 +++++-----
+ iptables/iptables-save.c     |  4 ++++
+ 4 files changed, 18 insertions(+), 10 deletions(-)
+
+diff --git a/iptables/ip6tables-restore.c b/iptables/ip6tables-restore.c
+index 0b8b95607febf..0f85fee3593d5 100644
+--- a/iptables/ip6tables-restore.c
++++ b/iptables/ip6tables-restore.c
+@@ -48,8 +48,6 @@ static const struct option options[] = {
+ 	{NULL},
+ };
+ 
+-static void print_usage(const char *name, const char *version) __attribute__((noreturn));
+-
+ #define prog_name ip6tables_globals.program_name
+ #define prog_vers ip6tables_globals.program_version
+ 
+@@ -66,8 +64,6 @@ static void print_usage(const char *name, const char *version)
+ 			"	   [ --wait-interval=<usecs>\n"
+ 			"	   [ --noflush ]\n"
+ 			"	   [ --modprobe=<command>]\n", name);
+-
+-	exit(1);
+ }
+ 
+ static struct xtc_handle *create_handle(const char *tablename)
+@@ -238,7 +234,7 @@ int ip6tables_restore_main(int argc, char *argv[])
+ 			case 'h':
+ 				print_usage("ip6tables-restore",
+ 					    IPTABLES_VERSION);
+-				break;
++				exit(0);
+ 			case 'n':
+ 				noflush = 1;
+ 				break;
+@@ -254,6 +250,10 @@ int ip6tables_restore_main(int argc, char *argv[])
+ 			case 'T':
+ 				tablename = optarg;
+ 				break;
++			default:
++				fprintf(stderr,
++					"Try `ip6tables-restore -h' for more information.\n");
++				exit(1);
+ 		}
+ 	}
+ 
+diff --git a/iptables/ip6tables-save.c b/iptables/ip6tables-save.c
+index 3a1ded162fad1..a64d169fc1211 100644
+--- a/iptables/ip6tables-save.c
++++ b/iptables/ip6tables-save.c
+@@ -157,6 +157,10 @@ int ip6tables_save_main(int argc, char *argv[])
+ 		case 'd':
+ 			do_output(tablename);
+ 			exit(0);
++		default:
++			fprintf(stderr,
++				"Look at manual page `ip6tables-save.8' for more information.\n");
++			exit(1);
+ 		}
+ 	}
+ 
+diff --git a/iptables/iptables-restore.c b/iptables/iptables-restore.c
+index 7aab1e78d7e0e..6d0df8d1c0f36 100644
+--- a/iptables/iptables-restore.c
++++ b/iptables/iptables-restore.c
+@@ -45,8 +45,6 @@ static const struct option options[] = {
+ 	{NULL},
+ };
+ 
+-static void print_usage(const char *name, const char *version) __attribute__((noreturn));
+-
+ #define prog_name iptables_globals.program_name
+ #define prog_vers iptables_globals.program_version
+ 
+@@ -64,8 +62,6 @@ static void print_usage(const char *name, const char *version)
+ 			"	   [ --wait-interval=<usecs>\n"
+ 			"	   [ --table=<TABLE> ]\n"
+ 			"	   [ --modprobe=<command>]\n", name);
+-
+-	exit(1);
+ }
+ 
+ static struct xtc_handle *create_handle(const char *tablename)
+@@ -237,7 +233,7 @@ iptables_restore_main(int argc, char *argv[])
+ 			case 'h':
+ 				print_usage("iptables-restore",
+ 					    IPTABLES_VERSION);
+-				break;
++				exit(0);
+ 			case 'n':
+ 				noflush = 1;
+ 				break;
+@@ -253,6 +249,10 @@ iptables_restore_main(int argc, char *argv[])
+ 			case 'T':
+ 				tablename = optarg;
+ 				break;
++			default:
++				fprintf(stderr,
++					"Try `iptables-restore -h' for more information.\n");
++				exit(1);
+ 		}
+ 	}
+ 
+diff --git a/iptables/iptables-save.c b/iptables/iptables-save.c
+index 21f8839e8cd82..87bc885735dc3 100644
+--- a/iptables/iptables-save.c
++++ b/iptables/iptables-save.c
+@@ -156,6 +156,10 @@ iptables_save_main(int argc, char *argv[])
+ 		case 'd':
+ 			do_output(tablename);
+ 			exit(0);
++		default:
++			fprintf(stderr,
++				"Look at manual page `iptables-save.8' for more information.\n");
++			exit(1);
+ 		}
+ 	}
+ 
+-- 
+2.17.0
+

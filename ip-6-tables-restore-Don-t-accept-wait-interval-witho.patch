@@ -1,0 +1,61 @@
+From a7da716205fb6009f665a4e91b28c7782cf47ce2 Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Fri, 11 May 2018 16:34:48 +0200
+Subject: [PATCH] ip{,6}tables-restore: Don't accept wait-interval without wait
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1465078
+Upstream Status: iptables commit 21ba5b3874fb3
+
+commit 21ba5b3874fb3d0c4cccc9b59f65c8df575211e2
+Author: Phil Sutter <phil@nwl.cc>
+Date:   Wed Sep 20 19:34:36 2017 +0200
+
+    ip{,6}tables-restore: Don't accept wait-interval without wait
+
+    If -W <val> was given, error out if -w wasn't since that doesn't make
+    sense.
+
+    Signed-off-by: Phil Sutter <phil@nwl.cc>
+    Signed-off-by: Pablo Neira Ayuso <pablo@netfilter.org>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ iptables/ip6tables-restore.c | 5 +++++
+ iptables/iptables-restore.c  | 5 +++++
+ 2 files changed, 10 insertions(+)
+
+diff --git a/iptables/ip6tables-restore.c b/iptables/ip6tables-restore.c
+index 0f85fee3593d5..e2a82c57bd426 100644
+--- a/iptables/ip6tables-restore.c
++++ b/iptables/ip6tables-restore.c
+@@ -271,6 +271,11 @@ int ip6tables_restore_main(int argc, char *argv[])
+ 	}
+ 	else in = stdin;
+ 
++	if (!wait_interval.tv_sec && !wait) {
++		fprintf(stderr, "Option --wait-interval requires option --wait\n");
++		exit(1);
++	}
++
+ 	/* Grab standard input. */
+ 	while (fgets(buffer, sizeof(buffer), in)) {
+ 		int ret = 0;
+diff --git a/iptables/iptables-restore.c b/iptables/iptables-restore.c
+index 6d0df8d1c0f36..af0c79408631d 100644
+--- a/iptables/iptables-restore.c
++++ b/iptables/iptables-restore.c
+@@ -270,6 +270,11 @@ iptables_restore_main(int argc, char *argv[])
+ 	}
+ 	else in = stdin;
+ 
++	if (!wait_interval.tv_sec && !wait) {
++		fprintf(stderr, "Option --wait-interval requires option --wait\n");
++		exit(1);
++	}
++
+ 	/* Grab standard input. */
+ 	while (fgets(buffer, sizeof(buffer), in)) {
+ 		int ret = 0;
+-- 
+2.17.0
+
