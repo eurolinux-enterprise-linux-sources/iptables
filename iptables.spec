@@ -7,7 +7,7 @@
 Name: iptables
 Summary: Tools for managing Linux kernel packet filtering capabilities
 Version: 1.4.21
-Release: 18.3%{?dist}
+Release: 24.1%{?dist}
 Source: http://www.netfilter.org/projects/iptables/files/%{name}-%{version}.tar.bz2
 Source1: iptables.init
 Source2: iptables-config
@@ -276,17 +276,31 @@ done
 
 
 %changelog
-* Tue Feb 13 2018 Phil Sutter - 1.4.21-18.3
-- Fix incorrect ip6tables.service unit syntax (RHBZ#1538549)
+* Tue Apr 03 2018 Phil Sutter - 1.4.21-24.1
+- Fix for stopping iptables and ip6tables at the same time (RHBZ#1563168)
+- Propagate errors on service stop (RHBZ#1563168)
+- Avoid overwriting parent's return code (RHBZ#1563168)
 
-* Mon Sep 18 2017 Phil Sutter - 1.4.21-18.2
+* Fri Nov 17 2017 Phil Sutter - 1.4.21-24
+- Fix fgrep call over multiple files in iptables.init
+
+* Fri Oct 20 2017 Phil Sutter - 1.4.21-23
+- Fix incorrect ip6tables.service unit syntax (RHBZ#1486803)
+
+* Fri Oct 06 2017 Phil Sutter - 1.4.21-22
+- Search for restorecon binary using which (RHBZ#1406860)
+
+* Thu Sep 07 2017 Phil Sutter - 1.4.21-21
+- Scan /etc/sysctl.d for items in IPTABLES_SYSCTL_LOAD_LIST (RHBZ#1402021)
+
+* Thu Aug 31 2017 Phil Sutter - 1.4.21-20
 - Prevent iptables.service and ip6tables.service from running in parallel
-  (RHBZ#1491963)
-- Don't restart services upon upgrade (RHBZ#1491961)
+  (RHBZ#1486803)
+- Don't restart services upon upgrade (RHBZ#1380141)
 
-* Mon Aug 14 2017 Thomas Woerner <twoerner@redhat.com> 1.4.21-18.1
+* Thu Aug 10 2017 Thomas Woerner <twoerner@redhat.com> 1.4.21-19
 - Use wait option for restore calls to fix failing service starts
-  (RHBZ#1481207)
+  (RHBZ#1477413)
 
 * Mon Apr 24 2017 Thomas Woerner <twoerner@redhat.com> 1.4.21-18
 - Add support for --wait options to restore commands (RHBZ#1438597)

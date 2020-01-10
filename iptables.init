@@ -29,7 +29,7 @@ IPV=${IPTABLES%tables} # ip for ipv4 | ip6 for ipv6
 [ "$IPV" = "ip" ] && _IPV="ipv4" || _IPV="ipv6"
 PROC_IPTABLES_NAMES=/proc/net/${IPV}_tables_names
 VAR_SUBSYS_IPTABLES=/var/lock/subsys/$IPTABLES
-RESTORECON=/bin/restorecon
+RESTORECON=$(which restorecon 2>/dev/null)
 [ ! -x "$RESTORECON" ] && RESTORECON=/bin/true
 
 # only usable for root
@@ -71,6 +71,17 @@ NF_MODULES_COMMON=(x_tables nf_nat nf_conntrack) # Used by netfilter v4 and v6
 # Get active tables
 NF_TABLES=$(cat "$PROC_IPTABLES_NAMES" 2>/dev/null)
 
+# Prepare commands for wait options
+IPTABLES_CMD="$IPTABLES"
+IPTABLES_RESTORE_CMD="$IPTABLES-restore"
+if [ $IPTABLES_RESTORE_WAIT -ne 0 ]; then
+	OPT="--wait ${IPTABLES_RESTORE_WAIT}"
+	if [ $IPTABLES_RESTORE_WAIT_INTERVAL -lt 1000000 ]; then
+	    OPT+=" --wait-interval ${IPTABLES_RESTORE_WAIT_INTERVAL}"
+	fi
+	IPTABLES_CMD+=" $OPT"
+	IPTABLES_RESTORE_CMD+=" $OPT"
+fi
 
 rmmod_r() {
     # Unload module with all referring modules.
@@ -105,6 +116,8 @@ rmmod_r() {
 }
 
 flush_n_delete() {
+    local ret=0
+
     # Flush firewall rules and delete chains.
     [ ! -e "$PROC_IPTABLES_NAMES" ] && return 0
 
@@ -112,19 +125,18 @@ flush_n_delete() {
     [ -z "$NF_TABLES" ] && return 1
 
     echo -n $"${IPTABLES}: Flushing firewall rules: "
-    ret=0
     # For all tables
     for i in $NF_TABLES; do
         # Flush firewall rules.
-	$IPTABLES -t $i -F;
+	$IPTABLES_CMD -t $i -F;
 	let ret+=$?;
 
         # Delete firewall chains.
-	$IPTABLES -t $i -X;
+	$IPTABLES_CMD -t $i -X;
 	let ret+=$?;
 
 	# Set counter to zero.
-	$IPTABLES -t $i -Z;
+	$IPTABLES_CMD -t $i -Z;
 	let ret+=$?;
     done
 
@@ -134,6 +146,8 @@ flush_n_delete() {
 }
 
 set_policy() {
+    local ret=0
+
     # Set policy for configured tables.
     policy=$1
 
@@ -145,33 +159,32 @@ set_policy() {
     [ -z "$tables" ] && return 1
 
     echo -n $"${IPTABLES}: Setting chains to policy $policy: "
-    ret=0
     for i in $tables; do
 	echo -n "$i "
 	case "$i" in
 	    raw)
-		$IPTABLES -t raw -P PREROUTING $policy \
-		    && $IPTABLES -t raw -P OUTPUT $policy \
+		$IPTABLES_CMD -t raw -P PREROUTING $policy \
+		    && $IPTABLES_CMD -t raw -P OUTPUT $policy \
 		    || let ret+=1
 		;;
 	    filter)
-                $IPTABLES -t filter -P INPUT $policy \
-		    && $IPTABLES -t filter -P OUTPUT $policy \
-		    && $IPTABLES -t filter -P FORWARD $policy \
+                $IPTABLES_CMD -t filter -P INPUT $policy \
+		    && $IPTABLES_CMD -t filter -P OUTPUT $policy \
+		    && $IPTABLES_CMD -t filter -P FORWARD $policy \
 		    || let ret+=1
 		;;
 	    nat)
-		$IPTABLES -t nat -P PREROUTING $policy \
-		    && $IPTABLES -t nat -P POSTROUTING $policy \
-		    && $IPTABLES -t nat -P OUTPUT $policy \
+		$IPTABLES_CMD -t nat -P PREROUTING $policy \
+		    && $IPTABLES_CMD -t nat -P POSTROUTING $policy \
+		    && $IPTABLES_CMD -t nat -P OUTPUT $policy \
 		    || let ret+=1
 		;;
 	    mangle)
-	        $IPTABLES -t mangle -P PREROUTING $policy \
-		    && $IPTABLES -t mangle -P POSTROUTING $policy \
-		    && $IPTABLES -t mangle -P INPUT $policy \
-		    && $IPTABLES -t mangle -P OUTPUT $policy \
-		    && $IPTABLES -t mangle -P FORWARD $policy \
+	        $IPTABLES_CMD -t mangle -P PREROUTING $policy \
+		    && $IPTABLES_CMD -t mangle -P POSTROUTING $policy \
+		    && $IPTABLES_CMD -t mangle -P INPUT $policy \
+		    && $IPTABLES_CMD -t mangle -P OUTPUT $policy \
+		    && $IPTABLES_CMD -t mangle -P FORWARD $policy \
 		    || let ret+=1
 		;;
 	    *)
@@ -186,12 +199,13 @@ set_policy() {
 }
 
 load_sysctl() {
+    local ret=0
+
     # load matched sysctl values
     if [ -n "$IPTABLES_SYSCTL_LOAD_LIST" ]; then
         echo -n $"Loading sysctl settings: "
-        ret=0
         for item in $IPTABLES_SYSCTL_LOAD_LIST; do
-            fgrep $item /etc/sysctl.conf | sysctl -p - >/dev/null
+            fgrep -hs $item /etc/sysctl.d/* | sysctl -p - >/dev/null
             let ret+=$?;
         done
         [ $ret -eq 0 ] && success || failure
@@ -201,6 +215,8 @@ load_sysctl() {
 }
 
 start() {
+    local ret=0
+
     # Do not start if there is no config file.
     if [ ! -f "$IPTABLES_DATA" ]; then
 	echo -n $"${IPTABLES}: No config file."; warning; echo
@@ -218,21 +234,15 @@ start() {
 
     OPT=
     [ "x$IPTABLES_SAVE_COUNTER" = "xyes" ] && OPT="-c"
-    if [ $IPTABLES_RESTORE_WAIT -ne 0 ]; then
-	OPT="${OPT} --wait ${IPTABLES_RESTORE_WAIT}"
-	if [ $IPTABLES_RESTORE_WAIT_INTERVAL -lt 1000000 ]; then
-	    OPT="${OPT} --wait-interval ${IPTABLES_RESTORE_WAIT_INTERVAL}"
-	fi
-    fi
 
-    $IPTABLES-restore $OPT $IPTABLES_DATA
+    $IPTABLES_RESTORE_CMD $OPT $IPTABLES_DATA
     if [ $? -eq 0 ]; then
 	success; echo
     else
 	failure; echo;
 	if [ -f "$IPTABLES_FALLBACK_DATA" ]; then
 	    echo -n $"${IPTABLES}: Applying firewall fallback rules: "
-	    $IPTABLES-restore $OPT $IPTABLES_FALLBACK_DATA
+	    $IPTABLES_RESTORE_CMD $OPT $IPTABLES_FALLBACK_DATA
 	    if [ $? -eq 0 ]; then
 		success; echo
 	    else
@@ -246,7 +256,6 @@ start() {
     # Load additional modules (helpers)
     if [ -n "$IPTABLES_MODULES" ]; then
 	echo -n $"${IPTABLES}: Loading additional modules: "
-	ret=0
 	for mod in $IPTABLES_MODULES; do
 	    echo -n "$mod "
 	    modprobe $mod > /dev/null 2>&1
@@ -264,6 +273,8 @@ start() {
 }
 
 stop() {
+    local ret=0
+
     # Do not stop if iptables module is not loaded.
     [ ! -e "$PROC_IPTABLES_NAMES" ] && return 0
 
@@ -271,23 +282,26 @@ stop() {
     # on systems where the default policy is DROP and root device is
     # network-based (i.e.: iSCSI, NFS)
     set_policy ACCEPT
+    let ret+=$?
     # And then, flush the rules and delete chains
     flush_n_delete
+    let ret+=$?
     
     if [ "x$IPTABLES_MODULES_UNLOAD" = "xyes" ]; then
 	echo -n $"${IPTABLES}: Unloading modules: "
-	ret=0
+	ret2=0
 	for mod in ${NF_MODULES[*]}; do
 	    rmmod_r $mod
-	    let ret+=$?;
+	    let ret2+=$?;
 	done
 	# try to unload remaining netfilter modules used by ipv4 and ipv6 
 	# netfilter
 	for mod in ${NF_MODULES_COMMON[*]}; do
 	    rmmod_r $mod >/dev/null
 	done
-	[ $ret -eq 0 ] && success || failure
+	[ $ret2 -eq 0 ] && success || failure
 	echo
+        let ret+=$ret2
     fi
     
     rm -f $VAR_SUBSYS_IPTABLES
@@ -295,6 +309,8 @@ stop() {
 }
 
 save() {
+    local ret=0
+
     # Check if iptable module is loaded
     if [ ! -e "$PROC_IPTABLES_NAMES" ]; then
 	echo -n $"${IPTABLES}: Nothing to save."; warning; echo
@@ -312,7 +328,6 @@ save() {
     OPT=
     [ "x$IPTABLES_SAVE_COUNTER" = "xyes" ] && OPT="-c"
 
-    ret=0
     TMP_FILE=$(/bin/mktemp -q $IPTABLES_DATA.XXXXXX) \
 	&& chmod 600 "$TMP_FILE" \
 	&& $IPTABLES-save $OPT > $TMP_FILE 2>/dev/null \
@@ -374,6 +389,8 @@ status() {
 }
 
 reload() {
+    local ret=0
+
     # Do not reload if there is no config file.
     if [ ! -f "$IPTABLES_DATA" ]; then
 	echo -n $"${IPTABLES}: No config file."; warning; echo
@@ -391,14 +408,8 @@ reload() {
 
     OPT=
     [ "x$IPTABLES_SAVE_COUNTER" = "xyes" ] && OPT="-c"
-    if [ $IPTABLES_RESTORE_WAIT -ne 0 ]; then
-	OPT="${OPT} --wait ${IPTABLES_RESTORE_WAIT}"
-	if [ $IPTABLES_RESTORE_WAIT_INTERVAL -lt 1000000 ]; then
-	    OPT="${OPT} --wait-interval ${IPTABLES_RESTORE_WAIT_INTERVAL}"
-	fi
-    fi
 
-    $IPTABLES-restore $OPT $IPTABLES_DATA
+    $IPTABLES_RESTORE_CMD $OPT $IPTABLES_DATA
     if [ $? -eq 0 ]; then
 	success; echo
     else
@@ -408,7 +419,6 @@ reload() {
     # Load additional modules (helpers)
     if [ -n "$IPTABLES_MODULES" ]; then
 	echo -n $"${IPTABLES}: Loading additional modules: "
-	ret=0
 	for mod in $IPTABLES_MODULES; do
 	    echo -n "$mod "
 	    modprobe $mod > /dev/null 2>&1
