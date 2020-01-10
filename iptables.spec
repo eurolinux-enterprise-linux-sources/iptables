@@ -7,7 +7,7 @@
 Name: iptables
 Summary: Tools for managing Linux kernel packet filtering capabilities
 Version: 1.4.21
-Release: 24.1%{?dist}
+Release: 24%{?dist}
 Source: http://www.netfilter.org/projects/iptables/files/%{name}-%{version}.tar.bz2
 Source1: iptables.init
 Source2: iptables-config
@@ -276,11 +276,6 @@ done
 
 
 %changelog
-* Tue Apr 03 2018 Phil Sutter - 1.4.21-24.1
-- Fix for stopping iptables and ip6tables at the same time (RHBZ#1563168)
-- Propagate errors on service stop (RHBZ#1563168)
-- Avoid overwriting parent's return code (RHBZ#1563168)
-
 * Fri Nov 17 2017 Phil Sutter - 1.4.21-24
 - Fix fgrep call over multiple files in iptables.init
 
