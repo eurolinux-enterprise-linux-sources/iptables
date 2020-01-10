@@ -1,0 +1,40 @@
+From 4ee53b682e3ebb9a809007ec907f65ccfe4a1342 Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Fri, 15 Mar 2019 17:50:10 +0100
+Subject: [PATCH] nfnl_osf: Replace deprecated nfnl_talk() by nfnl_query()
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1525980
+Upstream Status: iptables commit 52aa15098ebd6
+
+commit 52aa15098ebd62eaca9eb3c57c240df2455d8e9b
+Author: Phil Sutter <phil@nwl.cc>
+Date:   Wed Sep 19 15:16:56 2018 +0200
+
+    nfnl_osf: Replace deprecated nfnl_talk() by nfnl_query()
+
+    This eliminates the deprecation warning when compiling the sources.
+
+    Signed-off-by: Phil Sutter <phil@nwl.cc>
+    Signed-off-by: Florian Westphal <fw@strlen.de>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ utils/nfnl_osf.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/utils/nfnl_osf.c b/utils/nfnl_osf.c
+index 972128f47ba04..c67485ee698b1 100644
+--- a/utils/nfnl_osf.c
++++ b/utils/nfnl_osf.c
+@@ -384,7 +384,7 @@ static int osf_load_line(char *buffer, int len, int del)
+ 
+ 	nfnl_addattr_l(nmh, sizeof(buf), OSF_ATTR_FINGER, &f, sizeof(struct xt_osf_user_finger));
+ 
+-	return nfnl_talk(nfnlh, nmh, 0, 0, NULL, NULL, NULL);
++	return nfnl_query(nfnlh, nmh);
+ }
+ 
+ static int osf_load_entries(char *path, int del)
+-- 
+2.21.0
+

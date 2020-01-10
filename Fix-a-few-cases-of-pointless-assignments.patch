@@ -1,0 +1,163 @@
+From b0c800d08b90b84d5d693d63602bcc4b43a07b6f Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Fri, 15 Mar 2019 17:50:34 +0100
+Subject: [PATCH] Fix a few cases of pointless assignments
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1525980
+Upstream Status: iptables commit 7e50ebabbf9c3
+Conflicts: Dropped changes to non-existing nft-backend files.
+
+commit 7e50ebabbf9c3a5eeb9511d9f32c6104b56da5cd
+Author: Phil Sutter <phil@nwl.cc>
+Date:   Wed Sep 19 15:17:04 2018 +0200
+
+    Fix a few cases of pointless assignments
+
+    This gets rid of a number of assignments which are either redundant or
+    not used afterwards.
+
+    Signed-off-by: Phil Sutter <phil@nwl.cc>
+    Signed-off-by: Florian Westphal <fw@strlen.de>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ iptables/ip6tables-restore.c |  4 ++--
+ iptables/iptables-restore.c  |  4 ++--
+ iptables/iptables-xml.c      |  4 ++--
+ libxtables/xtoptions.c       |  2 +-
+ utils/nfnl_osf.c             | 13 +++++--------
+ 5 files changed, 12 insertions(+), 15 deletions(-)
+
+diff --git a/iptables/ip6tables-restore.c b/iptables/ip6tables-restore.c
+index d610360a1c1ff..fdcc0cb5b2c06 100644
+--- a/iptables/ip6tables-restore.c
++++ b/iptables/ip6tables-restore.c
+@@ -427,7 +427,6 @@ int ip6tables_restore_main(int argc, char *argv[])
+ 
+ 		} else if (in_table) {
+ 			int a;
+-			char *ptr = buffer;
+ 			char *pcnt = NULL;
+ 			char *bcnt = NULL;
+ 			char *parsestart;
+@@ -437,7 +436,8 @@ int ip6tables_restore_main(int argc, char *argv[])
+ 
+ 			if (buffer[0] == '[') {
+ 				/* we have counters in our input */
+-				ptr = strchr(buffer, ']');
++				char *ptr = strchr(buffer, ']');
++
+ 				if (!ptr)
+ 					xtables_error(PARAMETER_PROBLEM,
+ 						   "Bad line %u: need ]\n",
+diff --git a/iptables/iptables-restore.c b/iptables/iptables-restore.c
+index db77fb77b3c98..5a8c2c738bb0f 100644
+--- a/iptables/iptables-restore.c
++++ b/iptables/iptables-restore.c
+@@ -426,7 +426,6 @@ iptables_restore_main(int argc, char *argv[])
+ 
+ 		} else if (in_table) {
+ 			int a;
+-			char *ptr = buffer;
+ 			char *pcnt = NULL;
+ 			char *bcnt = NULL;
+ 			char *parsestart;
+@@ -436,7 +435,8 @@ iptables_restore_main(int argc, char *argv[])
+ 
+ 			if (buffer[0] == '[') {
+ 				/* we have counters in our input */
+-				ptr = strchr(buffer, ']');
++				char *ptr = strchr(buffer, ']');
++
+ 				if (!ptr)
+ 					xtables_error(PARAMETER_PROBLEM,
+ 						   "Bad line %u: need ]\n",
+diff --git a/iptables/iptables-xml.c b/iptables/iptables-xml.c
+index 962844762fc4e..92a5768f86903 100644
+--- a/iptables/iptables-xml.c
++++ b/iptables/iptables-xml.c
+@@ -731,7 +731,6 @@ iptables_xml_main(int argc, char *argv[])
+ 			ret = 1;
+ 		} else if (curTable[0]) {
+ 			unsigned int a;
+-			char *ptr = buffer;
+ 			char *pcnt = NULL;
+ 			char *bcnt = NULL;
+ 			char *parsestart;
+@@ -747,7 +746,8 @@ iptables_xml_main(int argc, char *argv[])
+ 
+ 			if (buffer[0] == '[') {
+ 				/* we have counters in our input */
+-				ptr = strchr(buffer, ']');
++				char *ptr = strchr(buffer, ']');
++
+ 				if (!ptr)
+ 					xtables_error(PARAMETER_PROBLEM,
+ 						   "Bad line %u: need ]\n",
+diff --git a/libxtables/xtoptions.c b/libxtables/xtoptions.c
+index 0c63c2d372dea..1ad4cb57f5836 100644
+--- a/libxtables/xtoptions.c
++++ b/libxtables/xtoptions.c
+@@ -282,7 +282,7 @@ static void xtopt_mint_value_to_ptr(struct xt_option_call *cb, void **datap,
+ static void xtopt_parse_mint(struct xt_option_call *cb)
+ {
+ 	const struct xt_option_entry *entry = cb->entry;
+-	const char *arg = cb->arg;
++	const char *arg;
+ 	size_t esize = xtopt_esize_by_type(entry->type);
+ 	const uintmax_t lmax = xtopt_max_by_type(entry->type);
+ 	void *put = XTOPT_MKPTR(cb);
+diff --git a/utils/nfnl_osf.c b/utils/nfnl_osf.c
+index c67485ee698b1..0f8b35b805016 100644
+--- a/utils/nfnl_osf.c
++++ b/utils/nfnl_osf.c
+@@ -157,7 +157,6 @@ static void xt_osf_parse_opt(struct xt_osf_opt *opt, __u16 *optnum, char *obuf,
+ 	i = 0;
+ 	while (ptr != NULL && i < olen && *ptr != 0) {
+ 		val = 0;
+-		op = 0;
+ 		wc = OSF_WSS_PLAIN;
+ 		switch (obuf[i]) {
+ 		case 'N':
+@@ -344,7 +343,7 @@ static int osf_load_line(char *buffer, int len, int del)
+ 	pend = xt_osf_strchr(pbeg, OSFPDEL);
+ 	if (pend) {
+ 		*pend = '\0';
+-		cnt = snprintf(obuf, sizeof(obuf), "%s,", pbeg);
++		snprintf(obuf, sizeof(obuf), "%s,", pbeg);
+ 		pbeg = pend + 1;
+ 	}
+ 
+@@ -352,25 +351,23 @@ static int osf_load_line(char *buffer, int len, int del)
+ 	if (pend) {
+ 		*pend = '\0';
+ 		if (pbeg[0] == '@' || pbeg[0] == '*')
+-			cnt = snprintf(f.genre, sizeof(f.genre), "%s", pbeg + 1);
++			snprintf(f.genre, sizeof(f.genre), "%s", pbeg + 1);
+ 		else
+-			cnt = snprintf(f.genre, sizeof(f.genre), "%s", pbeg);
++			snprintf(f.genre, sizeof(f.genre), "%s", pbeg);
+ 		pbeg = pend + 1;
+ 	}
+ 
+ 	pend = xt_osf_strchr(pbeg, OSFPDEL);
+ 	if (pend) {
+ 		*pend = '\0';
+-		cnt = snprintf(f.version, sizeof(f.version), "%s", pbeg);
++		snprintf(f.version, sizeof(f.version), "%s", pbeg);
+ 		pbeg = pend + 1;
+ 	}
+ 
+ 	pend = xt_osf_strchr(pbeg, OSFPDEL);
+ 	if (pend) {
+ 		*pend = '\0';
+-		cnt =
+-		    snprintf(f.subtype, sizeof(f.subtype), "%s", pbeg);
+-		pbeg = pend + 1;
++		snprintf(f.subtype, sizeof(f.subtype), "%s", pbeg);
+ 	}
+ 
+ 	xt_osf_parse_opt(f.opt, &f.opt_num, obuf, sizeof(obuf));
+-- 
+2.21.0
+

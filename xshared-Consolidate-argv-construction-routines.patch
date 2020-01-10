@@ -1,0 +1,568 @@
+From fc87d26b0343a5fbe661acc967f7a7c316531ca5 Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Wed, 3 Apr 2019 20:16:49 +0200
+Subject: [PATCH] xshared: Consolidate argv construction routines
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1668475
+Upstream Status: iptables commit a2ed880a19d08
+Conflicts:
+* Context change due to missing commit 2963a8df2175b
+  ("iptables: Remove explicit static variables initalization.").
+* Context change due to missing commit 1cc09188079a6
+  ("xshared: Consolidate parse_counters()").
+* Context change due to previously backported commit 8da04ffdca193
+  ("Share print_ipv{4,6}_addr() from xtables").
+* Dropped changes to non-existing file iptables/xtables-restore.c.
+
+commit a2ed880a19d0861342b3515721804b18d698bf44
+Author: Phil Sutter <phil@nwl.cc>
+Date:   Thu Aug 2 17:05:17 2018 +0200
+
+    xshared: Consolidate argv construction routines
+
+    Implementations were equal in {ip,ip6,x}tables-restore.c. The one in
+    iptables-xml.c differed slightly. For now, collect all features
+    together. Maybe it would make sense to migrate iptables-xml.c to using
+    add_param_to_argv() at some point and therefore extend the latter to
+    store whether a given parameter was quoted or not.
+
+    While being at it, a few improvements were done:
+
+    * free_argv() now also resets 'newargc' variable, so users don't have to
+      do that anymore.
+    * Indenting level in add_param_to_argv() was reduced a bit.
+    * That long error message is put into a single line to aid in grepping
+      for it.
+    * Explicit call to exit() after xtables_error() is removed since the
+      latter does not return anyway.
+
+    Signed-off-by: Phil Sutter <phil@nwl.cc>
+    Signed-off-by: Florian Westphal <fw@strlen.de>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ iptables/ip6tables-restore.c | 107 ++----------------------------
+ iptables/iptables-restore.c  | 107 ++----------------------------
+ iptables/iptables-xml.c      |  63 ------------------
+ iptables/xshared.c           | 123 +++++++++++++++++++++++++++++++++++
+ iptables/xshared.h           |  13 ++++
+ 5 files changed, 150 insertions(+), 263 deletions(-)
+
+diff --git a/iptables/ip6tables-restore.c b/iptables/ip6tables-restore.c
+index 611430d930eda..1f8cb43286f03 100644
+--- a/iptables/ip6tables-restore.c
++++ b/iptables/ip6tables-restore.c
+@@ -91,96 +91,6 @@ static int parse_counters(char *string, struct xt_counters *ctr)
+ 	return ret == 2;
+ }
+ 
+-/* global new argv and argc */
+-static char *newargv[255];
+-static int newargc;
+-
+-/* function adding one argument to newargv, updating newargc
+- * returns true if argument added, false otherwise */
+-static int add_argv(char *what) {
+-	DEBUGP("add_argv: %s\n", what);
+-	if (what && newargc + 1 < ARRAY_SIZE(newargv)) {
+-		newargv[newargc] = strdup(what);
+-		newargv[++newargc] = NULL;
+-		return 1;
+-	} else {
+-		xtables_error(PARAMETER_PROBLEM,
+-			"Parser cannot handle more arguments\n");
+-		return 0;
+-	}
+-}
+-
+-static void free_argv(void) {
+-	int i;
+-
+-	for (i = 0; i < newargc; i++)
+-		free(newargv[i]);
+-}
+-
+-static void add_param_to_argv(char *parsestart)
+-{
+-	int quote_open = 0, escaped = 0, param_len = 0;
+-	char param_buffer[1024], *curchar;
+-
+-	/* After fighting with strtok enough, here's now
+-	 * a 'real' parser. According to Rusty I'm now no
+-	 * longer a real hacker, but I can live with that */
+-
+-	for (curchar = parsestart; *curchar; curchar++) {
+-		if (quote_open) {
+-			if (escaped) {
+-				param_buffer[param_len++] = *curchar;
+-				escaped = 0;
+-				continue;
+-			} else if (*curchar == '\\') {
+-				escaped = 1;
+-				continue;
+-			} else if (*curchar == '"') {
+-				quote_open = 0;
+-				*curchar = ' ';
+-			} else {
+-				param_buffer[param_len++] = *curchar;
+-				continue;
+-			}
+-		} else {
+-			if (*curchar == '"') {
+-				quote_open = 1;
+-				continue;
+-			}
+-		}
+-
+-		if (*curchar == ' '
+-		    || *curchar == '\t'
+-		    || * curchar == '\n') {
+-			if (!param_len) {
+-				/* two spaces? */
+-				continue;
+-			}
+-
+-			param_buffer[param_len] = '\0';
+-
+-			/* check if table name specified */
+-			if (!strncmp(param_buffer, "-t", 2)
+-                            || !strncmp(param_buffer, "--table", 8)) {
+-				xtables_error(PARAMETER_PROBLEM,
+-				"The -t option (seen in line %u) cannot be "
+-				"used in ip6tables-restore.\n", line);
+-				exit(1);
+-			}
+-
+-			add_argv(param_buffer);
+-			param_len = 0;
+-		} else {
+-			/* regular character, copy to buffer */
+-			param_buffer[param_len++] = *curchar;
+-
+-			if (param_len >= sizeof(param_buffer))
+-				xtables_error(PARAMETER_PROBLEM,
+-				   "Parameter too long!");
+-		}
+-	}
+-}
+-
+ int ip6tables_restore_main(int argc, char *argv[])
+ {
+ 	struct xtc_handle *handle = NULL;
+@@ -425,9 +335,6 @@ int ip6tables_restore_main(int argc, char *argv[])
+ 			char *bcnt = NULL;
+ 			char *parsestart;
+ 
+-			/* reset the newargv */
+-			newargc = 0;
+-
+ 			if (buffer[0] == '[') {
+ 				/* we have counters in our input */
+ 				char *ptr = strchr(buffer, ']');
+@@ -456,17 +363,17 @@ int ip6tables_restore_main(int argc, char *argv[])
+ 				parsestart = buffer;
+ 			}
+ 
+-			add_argv(argv[0]);
+-			add_argv("-t");
+-			add_argv(curtable);
++			add_argv(argv[0], 0);
++			add_argv("-t", 0);
++			add_argv(curtable, 0);
+ 
+ 			if (counters && pcnt && bcnt) {
+-				add_argv("--set-counters");
+-				add_argv((char *) pcnt);
+-				add_argv((char *) bcnt);
++				add_argv("--set-counters", 0);
++				add_argv((char *) pcnt, 0);
++				add_argv((char *) bcnt, 0);
+ 			}
+ 
+-			add_param_to_argv(parsestart);
++			add_param_to_argv(parsestart, line);
+ 
+ 			DEBUGP("calling do_command6(%u, argv, &%s, handle):\n",
+ 				newargc, curtable);
+diff --git a/iptables/iptables-restore.c b/iptables/iptables-restore.c
+index b0da96d45d297..615e38a6625e0 100644
+--- a/iptables/iptables-restore.c
++++ b/iptables/iptables-restore.c
+@@ -89,96 +89,6 @@ static int parse_counters(char *string, struct xt_counters *ctr)
+ 	return ret == 2;
+ }
+ 
+-/* global new argv and argc */
+-static char *newargv[255];
+-static int newargc;
+-
+-/* function adding one argument to newargv, updating newargc 
+- * returns true if argument added, false otherwise */
+-static int add_argv(char *what) {
+-	DEBUGP("add_argv: %s\n", what);
+-	if (what && newargc + 1 < ARRAY_SIZE(newargv)) {
+-		newargv[newargc] = strdup(what);
+-		newargv[++newargc] = NULL;
+-		return 1;
+-	} else {
+-		xtables_error(PARAMETER_PROBLEM,
+-			"Parser cannot handle more arguments\n");
+-		return 0;
+-	}
+-}
+-
+-static void free_argv(void) {
+-	int i;
+-
+-	for (i = 0; i < newargc; i++)
+-		free(newargv[i]);
+-}
+-
+-static void add_param_to_argv(char *parsestart)
+-{
+-	int quote_open = 0, escaped = 0, param_len = 0;
+-	char param_buffer[1024], *curchar;
+-
+-	/* After fighting with strtok enough, here's now
+-	 * a 'real' parser. According to Rusty I'm now no
+-	 * longer a real hacker, but I can live with that */
+-
+-	for (curchar = parsestart; *curchar; curchar++) {
+-		if (quote_open) {
+-			if (escaped) {
+-				param_buffer[param_len++] = *curchar;
+-				escaped = 0;
+-				continue;
+-			} else if (*curchar == '\\') {
+-				escaped = 1;
+-				continue;
+-			} else if (*curchar == '"') {
+-				quote_open = 0;
+-				*curchar = ' ';
+-			} else {
+-				param_buffer[param_len++] = *curchar;
+-				continue;
+-			}
+-		} else {
+-			if (*curchar == '"') {
+-				quote_open = 1;
+-				continue;
+-			}
+-		}
+-
+-		if (*curchar == ' '
+-		    || *curchar == '\t'
+-		    || * curchar == '\n') {
+-			if (!param_len) {
+-				/* two spaces? */
+-				continue;
+-			}
+-
+-			param_buffer[param_len] = '\0';
+-
+-			/* check if table name specified */
+-			if (!strncmp(param_buffer, "-t", 2)
+-			    || !strncmp(param_buffer, "--table", 8)) {
+-				xtables_error(PARAMETER_PROBLEM,
+-				"The -t option (seen in line %u) cannot be "
+-				"used in iptables-restore.\n", line);
+-				exit(1);
+-			}
+-
+-			add_argv(param_buffer);
+-			param_len = 0;
+-		} else {
+-			/* regular character, copy to buffer */
+-			param_buffer[param_len++] = *curchar;
+-
+-			if (param_len >= sizeof(param_buffer))
+-				xtables_error(PARAMETER_PROBLEM,
+-				   "Parameter too long!");
+-		}
+-	}
+-}
+-
+ int
+ iptables_restore_main(int argc, char *argv[])
+ {
+@@ -424,9 +334,6 @@ iptables_restore_main(int argc, char *argv[])
+ 			char *bcnt = NULL;
+ 			char *parsestart;
+ 
+-			/* reset the newargv */
+-			newargc = 0;
+-
+ 			if (buffer[0] == '[') {
+ 				/* we have counters in our input */
+ 				char *ptr = strchr(buffer, ']');
+@@ -455,17 +362,17 @@ iptables_restore_main(int argc, char *argv[])
+ 				parsestart = buffer;
+ 			}
+ 
+-			add_argv(argv[0]);
+-			add_argv("-t");
+-			add_argv(curtable);
++			add_argv(argv[0], 0);
++			add_argv("-t", 0);
++			add_argv(curtable, 0);
+ 
+ 			if (counters && pcnt && bcnt) {
+-				add_argv("--set-counters");
+-				add_argv((char *) pcnt);
+-				add_argv((char *) bcnt);
++				add_argv("--set-counters", 0);
++				add_argv((char *) pcnt, 0);
++				add_argv((char *) bcnt, 0);
+ 			}
+ 
+-			add_param_to_argv(parsestart);
++			add_param_to_argv(parsestart, line);
+ 
+ 			DEBUGP("calling do_command4(%u, argv, &%s, handle):\n",
+ 				newargc, curtable);
+diff --git a/iptables/iptables-xml.c b/iptables/iptables-xml.c
+index c523a132b2240..49f8ea2826181 100644
+--- a/iptables/iptables-xml.c
++++ b/iptables/iptables-xml.c
+@@ -66,16 +66,6 @@ parse_counters(char *string, struct xt_counters *ctr)
+ 		return (0 == 2);
+ }
+ 
+-/* global new argv and argc */
+-static char *newargv[255];
+-static unsigned int newargc = 0;
+-
+-static char *oldargv[255];
+-static unsigned int oldargc = 0;
+-
+-/* arg meta data, were they quoted, frinstance */
+-static int newargvattr[255];
+-
+ #define XT_CHAIN_MAXNAMELEN XT_TABLE_MAXNAMELEN
+ static char closeActionTag[XT_TABLE_MAXNAMELEN + 1];
+ static char closeRuleTag[XT_TABLE_MAXNAMELEN + 1];
+@@ -93,56 +83,6 @@ struct chain {
+ static struct chain chains[maxChains];
+ static int nextChain = 0;
+ 
+-/* funCtion adding one argument to newargv, updating newargc 
+- * returns true if argument added, false otherwise */
+-static int
+-add_argv(char *what, int quoted)
+-{
+-	DEBUGP("add_argv: %d %s\n", newargc, what);
+-	if (what && newargc + 1 < ARRAY_SIZE(newargv)) {
+-		newargv[newargc] = strdup(what);
+-		newargvattr[newargc] = quoted;
+-		newargc++;
+-		return 1;
+-	} else
+-		return 0;
+-}
+-
+-static void
+-free_argv(void)
+-{
+-	unsigned int i;
+-
+-	for (i = 0; i < newargc; i++) {
+-		free(newargv[i]);
+-		newargv[i] = NULL;
+-	}
+-	newargc = 0;
+-
+-	for (i = 0; i < oldargc; i++) {
+-		free(oldargv[i]);
+-		oldargv[i] = NULL;
+-	}
+-	oldargc = 0;
+-}
+-
+-/* save parsed rule for comparison with next rule 
+-   to perform action agregation on duplicate conditions */
+-static void
+-save_argv(void)
+-{
+-	unsigned int i;
+-
+-	for (i = 0; i < oldargc; i++)
+-		free(oldargv[i]);
+-	oldargc = newargc;
+-	newargc = 0;
+-	for (i = 0; i < oldargc; i++) {
+-		oldargv[i] = newargv[i];
+-		newargv[i] = NULL;
+-	}
+-}
+-
+ /* like puts but with xml encoding */
+ static void
+ xmlEncode(char *text)
+@@ -736,9 +676,6 @@ iptables_xml_main(int argc, char *argv[])
+ 			int quote_open, quoted;
+ 			char param_buffer[1024];
+ 
+-			/* reset the newargv */
+-			newargc = 0;
+-
+ 			if (buffer[0] == '[') {
+ 				/* we have counters in our input */
+ 				char *ptr = strchr(buffer, ']');
+diff --git a/iptables/xshared.c b/iptables/xshared.c
+index 742502154aa55..84dbea562576e 100644
+--- a/iptables/xshared.c
++++ b/iptables/xshared.c
+@@ -406,3 +406,126 @@ void print_ipv6_addresses(const struct ip6t_entry *fw6, unsigned int format)
+ 	       ipv6_addr_to_string(&fw6->ipv6.dst,
+ 				   &fw6->ipv6.dmsk, format));
+ }
++
++/* global new argv and argc */
++char *newargv[255];
++int newargc = 0;
++
++/* saved newargv and newargc from save_argv() */
++char *oldargv[255];
++int oldargc = 0;
++
++/* arg meta data, were they quoted, frinstance */
++int newargvattr[255];
++
++/* function adding one argument to newargv, updating newargc
++ * returns true if argument added, false otherwise */
++int add_argv(const char *what, int quoted)
++{
++	DEBUGP("add_argv: %s\n", what);
++	if (what && newargc + 1 < ARRAY_SIZE(newargv)) {
++		newargv[newargc] = strdup(what);
++		newargvattr[newargc] = quoted;
++		newargv[++newargc] = NULL;
++		return 1;
++	} else {
++		xtables_error(PARAMETER_PROBLEM,
++			      "Parser cannot handle more arguments\n");
++	}
++}
++
++void free_argv(void)
++{
++	while (newargc)
++		free(newargv[--newargc]);
++	while (oldargc)
++		free(oldargv[--oldargc]);
++}
++
++/* Save parsed rule for comparison with next rule to perform action aggregation
++ * on duplicate conditions.
++ */
++void save_argv(void)
++{
++	unsigned int i;
++
++	while (oldargc)
++		free(oldargv[--oldargc]);
++
++	oldargc = newargc;
++	newargc = 0;
++	for (i = 0; i < oldargc; i++) {
++		oldargv[i] = newargv[i];
++	}
++}
++
++void add_param_to_argv(char *parsestart, int line)
++{
++	int quote_open = 0, escaped = 0, param_len = 0;
++	char param_buffer[1024], *curchar;
++
++	/* After fighting with strtok enough, here's now
++	 * a 'real' parser. According to Rusty I'm now no
++	 * longer a real hacker, but I can live with that */
++
++	for (curchar = parsestart; *curchar; curchar++) {
++		if (quote_open) {
++			if (escaped) {
++				param_buffer[param_len++] = *curchar;
++				escaped = 0;
++				continue;
++			} else if (*curchar == '\\') {
++				escaped = 1;
++				continue;
++			} else if (*curchar == '"') {
++				quote_open = 0;
++				*curchar = '"';
++			} else {
++				param_buffer[param_len++] = *curchar;
++				continue;
++			}
++		} else {
++			if (*curchar == '"') {
++				quote_open = 1;
++				continue;
++			}
++		}
++
++		switch (*curchar) {
++		case '"':
++			break;
++		case ' ':
++		case '\t':
++		case '\n':
++			if (!param_len) {
++				/* two spaces? */
++				continue;
++			}
++			break;
++		default:
++			/* regular character, copy to buffer */
++			param_buffer[param_len++] = *curchar;
++
++			if (param_len >= sizeof(param_buffer))
++				xtables_error(PARAMETER_PROBLEM,
++					      "Parameter too long!");
++			continue;
++		}
++
++		param_buffer[param_len] = '\0';
++
++		/* check if table name specified */
++		if ((param_buffer[0] == '-' &&
++		     param_buffer[1] != '-' &&
++		     strchr(param_buffer, 't')) ||
++		    (!strncmp(param_buffer, "--t", 3) &&
++		     !strncmp(param_buffer, "--table", strlen(param_buffer)))) {
++			xtables_error(PARAMETER_PROBLEM,
++				      "The -t option (seen in line %u) cannot be used in %s.\n",
++				      line, xt_params->program_name);
++		}
++
++		add_argv(param_buffer, 0);
++		param_len = 0;
++	}
++}
+diff --git a/iptables/xshared.h b/iptables/xshared.h
+index bfdb10b2701e5..4f567db9f410b 100644
+--- a/iptables/xshared.h
++++ b/iptables/xshared.h
+@@ -119,6 +119,19 @@ bool xs_has_arg(int argc, char *argv[]);
+ 
+ extern const struct xtables_afinfo *afinfo;
+ 
++extern char *newargv[];
++extern int newargc;
++
++extern char *oldargv[];
++extern int oldargc;
++
++extern int newargvattr[];
++
++int add_argv(const char *what, int quoted);
++void free_argv(void);
++void save_argv(void);
++void add_param_to_argv(char *parsestart, int line);
++
+ void print_ipv4_addresses(const struct ipt_entry *fw, unsigned int format);
+ void print_ipv6_addresses(const struct ip6t_entry *fw6, unsigned int format);
+ 
+-- 
+2.21.0
+

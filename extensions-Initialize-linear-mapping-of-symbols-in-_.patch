@@ -1,0 +1,139 @@
+From 861155bef2343e0259469dc8e4acde60e2c6fb91 Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Wed, 3 Apr 2019 20:29:38 +0200
+Subject: [PATCH] extensions: Initialize linear mapping of symbols in _init()
+ of extension
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1657075
+Upstream Status: iptables commit 56aadc01b258e
+Conflicts: Whitespace change due to missing commit f7c26137b0d57
+           ("extensions: libipt_realm: Add translation to nft").
+
+commit 56aadc01b258ef7849463723ab5ddc4885db22f6
+Author: Serhey Popovych <serhe.popovych@gmail.com>
+Date:   Thu Mar 1 13:03:10 2018 +0200
+
+    extensions: Initialize linear mapping of symbols in _init() of extension
+
+    libxt_devgroup and libipt_realm currently unable to display symbolic
+    names in save/print commands because linear mapping is not initialized.
+
+    It looks bit confusing as linear mapping initialization is done in init()
+    of extension, which is expected to be called before any other function of
+    extension.
+
+    However init is called only when '-m' option specified on command line,
+    that is true only for insert, append, replace and destroy iptables
+    commands.
+
+    Move initialization to extension _init() function before calling
+    any function in extension.
+
+    Before:
+    -------
+    ... src-group 0x1 dst-group 0x2
+    ... src-group 0x2 dst-group 0x1
+
+    After:
+    ------
+    ... src-group grp1 dst-group grp2
+    ... src-group grp2 dst-group grp1
+
+    Signed-off-by: Serhey Popovych <serhe.popovych@gmail.com>
+    Signed-off-by: Florian Westphal <fw@strlen.de>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ extensions/libipt_realm.c   | 17 +++++++----------
+ extensions/libxt_devgroup.c | 17 +++++++----------
+ 2 files changed, 14 insertions(+), 20 deletions(-)
+
+diff --git a/extensions/libipt_realm.c b/extensions/libipt_realm.c
+index a8d9dda0c00c0..fffb1218db7a6 100644
+--- a/extensions/libipt_realm.c
++++ b/extensions/libipt_realm.c
+@@ -28,17 +28,10 @@ static const struct xt_option_entry realm_opts[] = {
+ 	XTOPT_TABLEEND,
+ };
+ 
+-/* array of realms from /etc/iproute2/rt_realms */
++static const char f_realms[] = "/etc/iproute2/rt_realms";
++/* array of realms from f_realms[] */
+ static struct xtables_lmap *realms;
+ 
+-static void realm_init(struct xt_entry_match *m)
+-{
+-	const char file[] = "/etc/iproute2/rt_realms";
+-	realms = xtables_lmap_init(file);
+-	if (realms == NULL && errno != ENOENT)
+-		fprintf(stderr, "Warning: %s: %s\n", file, strerror(errno));
+-}
+-
+ static void realm_parse(struct xt_option_call *cb)
+ {
+ 	struct xt_realm_info *realminfo = cb->data;
+@@ -114,7 +107,6 @@ static struct xtables_match realm_mt_reg = {
+ 	.size		= XT_ALIGN(sizeof(struct xt_realm_info)),
+ 	.userspacesize	= XT_ALIGN(sizeof(struct xt_realm_info)),
+ 	.help		= realm_help,
+-	.init		= realm_init,
+ 	.print		= realm_print,
+ 	.save		= realm_save,
+ 	.x6_parse	= realm_parse,
+@@ -123,5 +115,10 @@ static struct xtables_match realm_mt_reg = {
+ 
+ void _init(void)
+ {
++	realms = xtables_lmap_init(f_realms);
++	if (realms == NULL && errno != ENOENT)
++		fprintf(stderr, "Warning: %s: %s\n", f_realms,
++			strerror(errno));
++
+ 	xtables_register_match(&realm_mt_reg);
+ }
+diff --git a/extensions/libxt_devgroup.c b/extensions/libxt_devgroup.c
+index fb1fcb51c1bb2..ebfa2aee80cf2 100644
+--- a/extensions/libxt_devgroup.c
++++ b/extensions/libxt_devgroup.c
+@@ -31,17 +31,10 @@ static const struct xt_option_entry devgroup_opts[] = {
+ 	XTOPT_TABLEEND,
+ };
+ 
+-/* array of devgroups from /etc/iproute2/group */
++static const char f_devgroups[] = "/etc/iproute2/group";
++/* array of devgroups from f_devgroups[] */
+ static struct xtables_lmap *devgroups;
+ 
+-static void devgroup_init(struct xt_entry_match *match)
+-{
+-	const char file[] = "/etc/iproute2/group";
+-	devgroups = xtables_lmap_init(file);
+-	if (devgroups == NULL && errno != ENOENT)
+-		fprintf(stderr, "Warning: %s: %s\n", file, strerror(errno));
+-}
+-
+ static void devgroup_parse_groupspec(const char *arg, unsigned int *group,
+ 				     unsigned int *mask)
+ {
+@@ -157,7 +150,6 @@ static struct xtables_match devgroup_mt_reg = {
+ 	.family		= NFPROTO_UNSPEC,
+ 	.size		= XT_ALIGN(sizeof(struct xt_devgroup_info)),
+ 	.userspacesize	= XT_ALIGN(sizeof(struct xt_devgroup_info)),
+-	.init		= devgroup_init,
+ 	.help		= devgroup_help,
+ 	.print		= devgroup_print,
+ 	.save		= devgroup_save,
+@@ -168,5 +160,10 @@ static struct xtables_match devgroup_mt_reg = {
+ 
+ void _init(void)
+ {
++	devgroups = xtables_lmap_init(f_devgroups);
++	if (devgroups == NULL && errno != ENOENT)
++		fprintf(stderr, "Warning: %s: %s\n", f_devgroups,
++			strerror(errno));
++
+ 	xtables_register_match(&devgroup_mt_reg);
+ }
+-- 
+2.21.0
+

@@ -1,0 +1,102 @@
+From 0d89bdef1e7f698787967bffed5c413ef0dee761 Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Fri, 15 Mar 2019 17:51:28 +0100
+Subject: [PATCH] libxtables: move some code to avoid cautions in vfork man
+ page
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1525980
+Upstream Status: iptables commit 78683093cf4f0
+
+commit 78683093cf4f059531e5f929a4884ffaecb8411c
+Author: Dan Wilder <dan.wilder@watchguard.com>
+Date:   Sat Oct 25 00:51:59 2014 +0200
+
+    libxtables: move some code to avoid cautions in vfork man page
+
+    Running iptables-restore on an embedded platform containing no modprobe program, the following lines in xtables.c lead to corrupted stack frame:
+
+     357     switch (vfork()) {
+     358     case 0:
+     359         argv[0] = (char *)modprobe;
+     360         argv[1] = (char *)modname;
+     361         if (quiet) {
+     362             argv[2] = "-q";
+     363             argv[3] = NULL;
+     364         } else {
+     365             argv[2] = NULL;
+     366             argv[3] = NULL;
+     367         }
+     368         execv(argv[0], argv);
+     369
+     370         /* not usually reached */
+     371         exit(1);
+
+    modprobe pointed to a non-existant program /sbin/modprobe, so execv()
+    always failed.  Not a problem in itself on our platform, as the kernel
+    modules are pre-loaded before iptables-restore is run, but it took a
+    bit of headscratching to track this down, as a stack frame was
+    corrupted, leading to failures quite a while after the function
+    containing this code had returned!
+
+    Relevant caution in man 2 vfork:
+
+        "The vfork() function has the same effect as fork(2), except that
+        the behavior is undefined if the process created by vfork() either
+        modifies any data ... or calls any other function before
+        successfully calling _exit(2) or one of the exec(3) family of
+        functions."
+
+    Apparently this has not been a problem for us in earlier versions of
+    glibc, maybe because vfork was more like fork, maybe because the
+    stack corruption was innocuous.  Ours is a corner case anyway, as
+    it might not have been a problem had modprobe existed or had
+    modprobe been a symlink to /bin/true.  But it seems odd to disregard
+    man page cautions, and our problem goes away if they are heeded.
+
+    Signed-off-by: Florian Westphal <fw@strlen.de>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ libxtables/xtables.c | 16 ++++++----------
+ 1 file changed, 6 insertions(+), 10 deletions(-)
+
+diff --git a/libxtables/xtables.c b/libxtables/xtables.c
+index cf9a59d5ec095..bca9863acc566 100644
+--- a/libxtables/xtables.c
++++ b/libxtables/xtables.c
+@@ -352,6 +352,11 @@ int xtables_insmod(const char *modname, const char *modprobe, bool quiet)
+ 		modprobe = buf;
+ 	}
+ 
++	argv[0] = (char *)modprobe;
++	argv[1] = (char *)modname;
++	argv[2] = quiet ? "-q" : NULL;
++	argv[3] = NULL;
++
+ 	/*
+ 	 * Need to flush the buffer, or the child may output it again
+ 	 * when switching the program thru execv.
+@@ -360,19 +365,10 @@ int xtables_insmod(const char *modname, const char *modprobe, bool quiet)
+ 
+ 	switch (vfork()) {
+ 	case 0:
+-		argv[0] = (char *)modprobe;
+-		argv[1] = (char *)modname;
+-		if (quiet) {
+-			argv[2] = "-q";
+-			argv[3] = NULL;
+-		} else {
+-			argv[2] = NULL;
+-			argv[3] = NULL;
+-		}
+ 		execv(argv[0], argv);
+ 
+ 		/* not usually reached */
+-		exit(1);
++		_exit(1);
+ 	case -1:
+ 		free(buf);
+ 		return -1;
+-- 
+2.21.0
+

@@ -1,0 +1,47 @@
+From d9db0c35351a960a141e9ddc30cf6f09c9c27c8b Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Thu, 18 Apr 2019 13:29:43 +0200
+Subject: [PATCH] man: iptables-save: Add note about module autoloading
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1691380
+Upstream Status: iptables commit 3390007a11cbc
+
+commit 3390007a11cbc45de1522f99ae751a3c5d55dd6f
+Author: Phil Sutter <phil@nwl.cc>
+Date:   Tue Mar 26 19:03:43 2019 +0100
+
+    man: iptables-save: Add note about module autoloading
+
+    Using '-t' parameter in iptables-save might lead to kernel module
+    loading, just like with iptables itself. Copy the hint from iptables.8
+    to inform users.
+
+    Signed-off-by: Phil Sutter <phil@nwl.cc>
+    Signed-off-by: Pablo Neira Ayuso <pablo@netfilter.org>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ iptables/iptables-save.8.in | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/iptables/iptables-save.8.in b/iptables/iptables-save.8.in
+index 4091c0a595575..c3f1bd2152c58 100644
+--- a/iptables/iptables-save.8.in
++++ b/iptables/iptables-save.8.in
+@@ -44,8 +44,11 @@ inspect /proc/sys/kernel/modprobe to determine the executable's path.
+ include the current values of all packet and byte counters in the output
+ .TP
+ \fB\-t\fR, \fB\-\-table\fR \fItablename\fP
+-restrict output to only one table. If not specified, output includes all
+-available tables.
++restrict output to only one table. If the kernel is configured with automatic
++module loading, an attempt will be made to load the appropriate module for
++that table if it is not already there.
++.br
++If not specified, output includes all available tables.
+ .SH BUGS
+ None known as of iptables-1.2.1 release
+ .SH AUTHORS
+-- 
+2.21.0
+

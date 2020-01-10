@@ -1,0 +1,50 @@
+From c360c1d2af887c8e614ec152fb64717e56fb472d Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Tue, 9 Apr 2019 15:22:44 +0200
+Subject: [PATCH] iptables-xml: fix segfault if missing space after -A
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1525980
+Upstream Status: iptables commit f53b78e423d82
+
+commit f53b78e423d82b0c71c076480f52edeb5eaec5f8
+Author: Phil Oester <kernel@linuxace.com>
+Date:   Thu Jan 23 22:06:58 2014 -0800
+
+    iptables-xml: fix segfault if missing space after -A
+
+    As pointed out by Bernhard Reutner-Fischer, a malformed line fed to
+    iptables-xml such as the below with a missing space after the -A:
+
+            -APOSTROUTING -d 1.1.1.1/32 -p tcp -j MASQUERADE
+
+    causes a segfault.  Patch attached.
+
+    This closes netfilter bugzilla #886.
+
+    Signed-off-by: Phil Oester <kernel@linuxace.com>
+    Signed-off-by: Pablo Neira Ayuso <pablo@netfilter.org>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ iptables/iptables-xml.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/iptables/iptables-xml.c b/iptables/iptables-xml.c
+index 49f8ea2826181..769f76550b764 100644
+--- a/iptables/iptables-xml.c
++++ b/iptables/iptables-xml.c
+@@ -777,6 +777,11 @@ iptables_xml_main(int argc, char *argv[])
+ 			for (a = 0; a < newargc; a++)
+ 				DEBUGP("argv[%u]: %s\n", a, newargv[a]);
+ 
++			if (!chain) {
++				fprintf(stderr, "%s: line %u failed - no chain found\n",
++					prog_name, line);
++				exit(1);
++			}
+ 			needChain(chain);// Should we explicitly look for -A
+ 			do_rule(pcnt, bcnt, newargc, newargv, newargvattr);
+ 
+-- 
+2.21.0
+

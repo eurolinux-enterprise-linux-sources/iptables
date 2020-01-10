@@ -1,0 +1,91 @@
+From 3f4e13d60ddbb61bc3256221a98f5c5a954f6f5c Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Fri, 15 Mar 2019 17:51:28 +0100
+Subject: [PATCH] libxtables: Avoid calling memcpy() with NULL source
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1525980
+Upstream Status: iptables commit ab639f236ff85
+
+commit ab639f236ff85d2f447cc6601c7ff42cefdaf853
+Author: Phil Sutter <phil@nwl.cc>
+Date:   Wed Sep 19 15:16:54 2018 +0200
+
+    libxtables: Avoid calling memcpy() with NULL source
+
+    Both affected functions check if 'oldopts' is NULL once but later seem
+    to ignore that possibility. To catch up on that, increment the pointer
+    only if it isn't NULL, also don't copy its content into the merged
+    options buffer in that case.
+
+    Signed-off-by: Phil Sutter <phil@nwl.cc>
+    Signed-off-by: Florian Westphal <fw@strlen.de>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ libxtables/xtables.c   | 12 ++++++++----
+ libxtables/xtoptions.c | 12 ++++++++----
+ 2 files changed, 16 insertions(+), 8 deletions(-)
+
+diff --git a/libxtables/xtables.c b/libxtables/xtables.c
+index 4a014e48a9f45..cf9a59d5ec095 100644
+--- a/libxtables/xtables.c
++++ b/libxtables/xtables.c
+@@ -119,8 +119,10 @@ struct option *xtables_merge_options(struct option *orig_opts,
+ 	 * Since @oldopts also has @orig_opts already (and does so at the
+ 	 * start), skip these entries.
+ 	 */
+-	oldopts += num_oold;
+-	num_old -= num_oold;
++	if (oldopts != NULL) {
++		oldopts += num_oold;
++		num_old -= num_oold;
++	}
+ 
+ 	merge = malloc(sizeof(*mp) * (num_oold + num_old + num_new + 1));
+ 	if (merge == NULL)
+@@ -139,8 +141,10 @@ struct option *xtables_merge_options(struct option *orig_opts,
+ 		mp->val += *option_offset;
+ 
+ 	/* Third, the old options */
+-	memcpy(mp, oldopts, sizeof(*mp) * num_old);
+-	mp += num_old;
++	if (oldopts != NULL) {
++		memcpy(mp, oldopts, sizeof(*mp) * num_old);
++		mp += num_old;
++	}
+ 	xtables_free_opts(0);
+ 
+ 	/* Clear trailing entry */
+diff --git a/libxtables/xtoptions.c b/libxtables/xtoptions.c
+index 1ad4cb57f5836..1d3fda73dedf7 100644
+--- a/libxtables/xtoptions.c
++++ b/libxtables/xtoptions.c
+@@ -91,8 +91,10 @@ xtables_options_xfrm(struct option *orig_opts, struct option *oldopts,
+ 	 * Since @oldopts also has @orig_opts already (and does so at the
+ 	 * start), skip these entries.
+ 	 */
+-	oldopts += num_orig;
+-	num_old -= num_orig;
++	if (oldopts != NULL) {
++		oldopts += num_orig;
++		num_old -= num_orig;
++	}
+ 
+ 	merge = malloc(sizeof(*mp) * (num_orig + num_old + num_new + 1));
+ 	if (merge == NULL)
+@@ -114,8 +116,10 @@ xtables_options_xfrm(struct option *orig_opts, struct option *oldopts,
+ 	}
+ 
+ 	/* Third, the old options */
+-	memcpy(mp, oldopts, sizeof(*mp) * num_old);
+-	mp += num_old;
++	if (oldopts != NULL) {
++		memcpy(mp, oldopts, sizeof(*mp) * num_old);
++		mp += num_old;
++	}
+ 	xtables_free_opts(0);
+ 
+ 	/* Clear trailing entry */
+-- 
+2.21.0
+

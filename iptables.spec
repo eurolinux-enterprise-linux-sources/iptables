@@ -7,7 +7,7 @@
 Name: iptables
 Summary: Tools for managing Linux kernel packet filtering capabilities
 Version: 1.4.21
-Release: 28%{?dist}
+Release: 33%{?dist}
 Source: http://www.netfilter.org/projects/iptables/files/%{name}-%{version}.tar.bz2
 Source1: iptables.init
 Source2: iptables-config
@@ -39,6 +39,42 @@ Patch19: ip-6-tables-restore-Don-t-ignore-missing-wait-interv.patch
 Patch20: ip-6-tables-restore-Don-t-accept-wait-interval-witho.patch
 Patch21: utils-nfnl_osf-Fix-synopsis-in-help-text.patch
 Patch22: utils-Add-a-man-page-for-nfnl_osf.patch
+Patch23: Mark-fall-through-cases-in-switch-statements.patch
+Patch24: libiptc-Simplify-alloc_handle-function-signature.patch
+Patch25: libxtables-Fix-potential-array-overrun-in-xtables_op.patch
+Patch26: ip-6-tables-restore-Fix-for-uninitialized-array-curt.patch
+Patch27: nfnl_osf-Replace-deprecated-nfnl_talk-by-nfnl_query.patch
+Patch28: libxt_string-Avoid-potential-array-out-of-bounds-acc.patch
+Patch29: libxt_string-Fix-array-out-of-bounds-check.patch
+Patch30: libxtables-Don-t-read-garbage-in-xtables_strtoui.patch
+Patch31: libxt_time-Drop-initialization-of-variable-year.patch
+Patch32: libxt_sctp-fix-array-out-of-range-in-print_chunk.patch
+Patch33: libxt_ipvs-Avoid-potential-buffer-overrun.patch
+Patch34: libxt_conntrack-Version-0-does-not-support-XT_CONNTR.patch
+Patch35: Fix-a-few-cases-of-pointless-assignments.patch
+Patch36: nfnl_osf-Drop-pointless-check-in-xt_osf_strchr.patch
+Patch37: libxt_conntrack-Avoid-potential-buffer-overrun.patch
+Patch38: libxtables-Check-extension-real_name-length.patch
+Patch39: libiptc-NULL-terminate-errorname.patch
+Patch40: libxtables-Avoid-calling-memcpy-with-NULL-source.patch
+Patch41: libxt_LED-Avoid-string-overrun-while-parsing-led-tri.patch
+Patch42: libxt_recent-Remove-ineffective-checks-for-info-name.patch
+Patch43: libxtables-move-some-code-to-avoid-cautions-in-vfork.patch
+Patch44: libxtables-Use-posix_spawn-instead-of-vfork.patch
+Patch45: libiptc-Avoid-side-effect-in-memset-calls.patch
+Patch46: Share-print_ipv-4-6-_addr-from-xtables.patch
+Patch47: extensions-REJECT-Check-for-array-overrun.patch
+Patch48: list-fix-prefetch-dummy.patch
+Patch49: extensions-Add-macro-_DEFAULT_SOURCE.patch
+Patch50: Consolidate-DEBUGP-macros.patch
+Patch51: xshared-Consolidate-argv-construction-routines.patch
+Patch52: extensions-Fix-ipvs-vproto-parsing.patch
+Patch53: extensions-Fix-ipvs-vproto-option-printing.patch
+Patch54: extensions-libxt_devgroup-Fix-the-path-of-the-group-.patch
+Patch55: extensions-Initialize-linear-mapping-of-symbols-in-_.patch
+Patch56: xtables-Introduce-and-use-common-function-to-parse-v.patch
+Patch57: iptables-xml-fix-segfault-if-missing-space-after-A.patch
+Patch58: man-iptables-save-Add-note-about-module-autoloading.patch
 
 Group: System Environment/Base
 URL: http://www.netfilter.org/
@@ -104,29 +140,7 @@ Currently only provides nfnl_osf with the pf.os database.
 
 
 %prep
-%setup -q
-%patch1 -p1 -b .rhbz_1054871
-%patch2 -p1 -b .libxt_cgroup
-%patch3 -p1 -b .wait_seconds
-%patch4 -p1 -b .flock_wait
-%patch5 -p1 -b .rhbz_1261238
-%patch6 -p1 -b .rhbz_1298879
-%patch7 -p1 -b .wait-interval
-%patch8 -p1 -b .do_not_lock_again_and_again
-%patch9 -p1 -b .use_the_blocking_file_lock_request
-%patch10 -p1 -b .configure_set_lock_file_path
-%patch11 -p1 -b .move_XT_LOCK_NAME_to_config.h
-%patch12 -p1 -b .remove_duplicated_argument_parsing
-%patch13 -p1 -b .restore_support_acquiring_the_lock
-%patch14 -p1 -b .do_not_set_changed_for_check_options
-%patch15 -p1 -b .restore_version
-%patch16 -p1 -b .restore_wait_man
-%patch17 -p1 -b .tcpmss_detect_invalid_ranges
-%patch18 -p1 -b .exit_unknown_option
-%patch19 -p1 -b .require_wait_value
-%patch20 -p1 -b .wait_interval_needs_wait
-%patch21 -p1 -b .nfnl_osf_synopsis
-%patch22 -p1 -b .nfnl_osf_man_page
+%autosetup -p1
 
 %build
 # Since patches above touch configure.ac we must regen configure
@@ -290,6 +304,26 @@ done
 
 
 %changelog
+* Thu Apr 18 2019 Phil Sutter <psutter@redhat.com> - 1.4.21-33
+- man: iptables-save: Add note about module autoloading (RHBZ#1691380)
+
+* Tue Apr 09 2019 Phil Sutter <psutter@redhat.com> - 1.4.21-32
+- iptables-xml: fix segfault if missing space after -A (RHBZ#1525980)
+
+* Wed Apr 03 2019 Phil Sutter <psutter@redhat.com> - 1.4.21-31
+- Fix iptables-restore with empty comment in rule (RHBZ#1668475)
+- Fix parsing and printing of -m ipvs --vproto option (RHBZ#1679726)
+- Fix for wrong location of devgroup definition file (RHBZ#1657075)
+- Fix for non-numeric devgroup name output (RHBZ#1657075)
+- Reject negative realm values (RHBZ#1657075)
+
+* Fri Mar 15 2019 Phil Sutter - 1.4.21-30
+- Drop leftover variable from init script (RHBZ#1520534)
+
+* Fri Mar 15 2019 Phil Sutter - 1.4.21-29
+- Do not attempt to unload any modules when stopping the firewall (RHBZ#1520534)
+- Fix for covscan warnings (RHBZ#1525980)
+
 * Tue Jun 05 2018 Phil Sutter - 1.4.21-28
 - Add nfnl_osf.8 man page (RHBZ#1487331)
 

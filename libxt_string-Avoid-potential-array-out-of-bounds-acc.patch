@@ -1,0 +1,46 @@
+From d9b22d809995f16b2bc988c8f72d70a5cd3e86d1 Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Fri, 15 Mar 2019 17:50:10 +0100
+Subject: [PATCH] libxt_string: Avoid potential array out of bounds access
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1525980
+Upstream Status: iptables commit 56d7ab42f3782
+
+commit 56d7ab42f37829ab8d42f34b77fd630ce08f5a7c
+Author: Phil Sutter <phil@nwl.cc>
+Date:   Mon Sep 10 23:35:16 2018 +0200
+
+    libxt_string: Avoid potential array out of bounds access
+
+    The pattern index variable 'sindex' is bounds checked before
+    incrementing it, which means in the next loop iteration it might already
+    match the bounds check condition but is used anyway.
+
+    Fix this by incrementing the index before performing the bounds check.
+
+    Signed-off-by: Phil Sutter <phil@nwl.cc>
+    Signed-off-by: Florian Westphal <fw@strlen.de>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ extensions/libxt_string.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/extensions/libxt_string.c b/extensions/libxt_string.c
+index fb15980e4a73f..d298c6a7081e7 100644
+--- a/extensions/libxt_string.c
++++ b/extensions/libxt_string.c
+@@ -159,9 +159,8 @@ parse_hex_string(const char *s, struct xt_string_info *info)
+ 			info->pattern[sindex] = s[i];
+ 			i++;
+ 		}
+-		if (sindex > XT_STRING_MAX_PATTERN_SIZE)
++		if (++sindex > XT_STRING_MAX_PATTERN_SIZE)
+ 			xtables_error(PARAMETER_PROBLEM, "STRING too long \"%s\"", s);
+-		sindex++;
+ 	}
+ 	info->patlen = sindex;
+ }
+-- 
+2.21.0
+

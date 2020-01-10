@@ -1,0 +1,72 @@
+From 20f5f3c0c3b4cebc60af3d2def0ac983f54bfb06 Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Fri, 15 Mar 2019 17:52:01 +0100
+Subject: [PATCH] extensions: REJECT: Check for array overrun
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1525980
+Upstream Status: RHEL-only
+
+This might happen in theory if enum ip6t_reject_with was extended in
+kernel and some other tool added a rule making use of the new value.
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ extensions/libip6t_REJECT.c | 8 ++++++++
+ extensions/libipt_REJECT.c  | 8 ++++++++
+ 2 files changed, 16 insertions(+)
+
+diff --git a/extensions/libip6t_REJECT.c b/extensions/libip6t_REJECT.c
+index 8085321a6d654..86f2d04296294 100644
+--- a/extensions/libip6t_REJECT.c
++++ b/extensions/libip6t_REJECT.c
+@@ -104,6 +104,10 @@ static void REJECT_print(const void *ip, const struct xt_entry_target *target,
+ 	for (i = 0; i < ARRAY_SIZE(reject_table); ++i)
+ 		if (reject_table[i].with == reject->with)
+ 			break;
++	if (i == ARRAY_SIZE(reject_table))
++		xtables_error(VERSION_PROBLEM,
++			      "unknown reject type %d in ruleset",
++			      reject->with);
+ 	printf(" reject-with %s", reject_table[i].name);
+ }
+ 
+@@ -116,6 +120,10 @@ static void REJECT_save(const void *ip, const struct xt_entry_target *target)
+ 	for (i = 0; i < ARRAY_SIZE(reject_table); ++i)
+ 		if (reject_table[i].with == reject->with)
+ 			break;
++	if (i == ARRAY_SIZE(reject_table))
++		xtables_error(VERSION_PROBLEM,
++			      "unknown reject type %d in ruleset",
++			      reject->with);
+ 
+ 	printf(" --reject-with %s", reject_table[i].name);
+ }
+diff --git a/extensions/libipt_REJECT.c b/extensions/libipt_REJECT.c
+index 362c65ed88e96..5573ebd28022c 100644
+--- a/extensions/libipt_REJECT.c
++++ b/extensions/libipt_REJECT.c
+@@ -124,6 +124,10 @@ static void REJECT_print(const void *ip, const struct xt_entry_target *target,
+ 	for (i = 0; i < ARRAY_SIZE(reject_table); ++i)
+ 		if (reject_table[i].with == reject->with)
+ 			break;
++	if (i == ARRAY_SIZE(reject_table))
++		xtables_error(VERSION_PROBLEM,
++			      "unknown reject type %d in ruleset",
++			      reject->with);
+ 	printf(" reject-with %s", reject_table[i].name);
+ }
+ 
+@@ -136,6 +140,10 @@ static void REJECT_save(const void *ip, const struct xt_entry_target *target)
+ 	for (i = 0; i < ARRAY_SIZE(reject_table); ++i)
+ 		if (reject_table[i].with == reject->with)
+ 			break;
++	if (i == ARRAY_SIZE(reject_table))
++		xtables_error(VERSION_PROBLEM,
++			      "unknown reject type %d in ruleset",
++			      reject->with);
+ 
+ 	printf(" --reject-with %s", reject_table[i].name);
+ }
+-- 
+2.21.0
+

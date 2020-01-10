@@ -1,0 +1,42 @@
+From f958c3a78f14140e7ee983c3698918fe35f1a7af Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Fri, 15 Mar 2019 17:50:10 +0100
+Subject: [PATCH] libxtables: Fix potential array overrun in
+ xtables_option_parse()
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1525980
+Upstream Status: iptables commit 4144571f87c09
+
+commit 4144571f87c094471419ef59e8bb89ef33cd1365
+Author: Phil Sutter <phil@nwl.cc>
+Date:   Mon Sep 10 23:35:13 2018 +0200
+
+    libxtables: Fix potential array overrun in xtables_option_parse()
+
+    If entry->type is to be used as array index, it needs to be at max one
+    less than that array's size.
+
+    Signed-off-by: Phil Sutter <phil@nwl.cc>
+    Signed-off-by: Florian Westphal <fw@strlen.de>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ libxtables/xtoptions.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/libxtables/xtoptions.c b/libxtables/xtoptions.c
+index 78e9abd6a3f47..0c63c2d372dea 100644
+--- a/libxtables/xtoptions.c
++++ b/libxtables/xtoptions.c
+@@ -864,7 +864,7 @@ void xtables_option_parse(struct xt_option_call *cb)
+ 	 * a *RC option type.
+ 	 */
+ 	cb->nvals = 1;
+-	if (entry->type <= ARRAY_SIZE(xtopt_subparse) &&
++	if (entry->type < ARRAY_SIZE(xtopt_subparse) &&
+ 	    xtopt_subparse[entry->type] != NULL)
+ 		xtopt_subparse[entry->type](cb);
+ 	/* Exclusion with other flags tested later in finalize. */
+-- 
+2.21.0
+

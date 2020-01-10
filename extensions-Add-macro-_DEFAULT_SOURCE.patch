@@ -1,0 +1,60 @@
+From 3dcd69e5655a2485d39efd64b5bd9fd38fdb4a04 Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Fri, 15 Mar 2019 17:52:42 +0100
+Subject: [PATCH] extensions: Add macro _DEFAULT_SOURCE.
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1525980
+Upstream Status: iptables commit 27de281d8aca8
+
+commit 27de281d8aca84e3c841b3ae72a17616b1382ac4
+Author: Varsha Rao <rvarsha016@gmail.com>
+Date:   Thu Dec 21 09:05:45 2017 +0530
+
+    extensions: Add macro _DEFAULT_SOURCE.
+
+    Define _DEFAULT_SOURCE as _BSD_SOURCE is deprecated.
+    https://sourceware.org/glibc/wiki/Release/2.20#Packaging_Changes
+
+    This patch fixes the following warning:
+
+    warning: #warning "_BSD_SOURCE and _SVID_SOURCE are deprecated, use
+    _DEFAULT_SOURCE" [-Wcpp]
+     # warning "_BSD_SOURCE and _SVID_SOURCE are deprecated, use
+     # _DEFAULT_SOURCE"
+
+    Signed-off-by: Varsha Rao <rvarsha016@gmail.com>
+    Signed-off-by: Pablo Neira Ayuso <pablo@netfilter.org>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ extensions/libxt_hashlimit.c | 1 +
+ extensions/libxt_limit.c     | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/extensions/libxt_hashlimit.c b/extensions/libxt_hashlimit.c
+index c5b8d7795c5e5..6d64017022c00 100644
+--- a/extensions/libxt_hashlimit.c
++++ b/extensions/libxt_hashlimit.c
+@@ -11,6 +11,7 @@
+  * Error corections by nmalykh@bilim.com (22.01.2005)
+  */
+ #define _BSD_SOURCE 1
++#define _DEFAULT_SOURCE 1
+ #define _ISOC99_SOURCE 1
+ #include <math.h>
+ #include <stdbool.h>
+diff --git a/extensions/libxt_limit.c b/extensions/libxt_limit.c
+index f75ef2f87a74c..183a86e324211 100644
+--- a/extensions/libxt_limit.c
++++ b/extensions/libxt_limit.c
+@@ -4,6 +4,7 @@
+  * Hervé Eychenne    <rv@wallfire.org>
+  */
+ #define _BSD_SOURCE 1
++#define _DEFAULT_SOURCE 1
+ #define _ISOC99_SOURCE 1
+ #include <math.h>
+ #include <stdio.h>
+-- 
+2.21.0
+

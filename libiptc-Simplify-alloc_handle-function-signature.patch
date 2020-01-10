@@ -1,0 +1,74 @@
+From e64b48b46cec83203ff8de80a1c56be2c40b2c7d Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Fri, 15 Mar 2019 17:50:10 +0100
+Subject: [PATCH] libiptc: Simplify alloc_handle() function signature
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1525980
+Upstream Status: iptables commit 22ef371abeeec
+
+commit 22ef371abeeec789bb6a701352dcb961556595c2
+Author: Phil Sutter <phil@nwl.cc>
+Date:   Wed Sep 19 15:16:53 2018 +0200
+
+    libiptc: Simplify alloc_handle() function signature
+
+    This change originated from covscan complaining about the strcpy() call
+    with an unknown size source buffer. But in fact, the size is known (and
+    equal to the destination size), so pass a pointer to STRUCT_GETINFO to
+    alloc_handle() instead of it's fields separately. Hopefully this will
+    silence covscan.
+
+    Signed-off-by: Phil Sutter <phil@nwl.cc>
+    Signed-off-by: Florian Westphal <fw@strlen.de>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ libiptc/libiptc.c | 14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/libiptc/libiptc.c b/libiptc/libiptc.c
+index 1f61fde53f1db..f6a9862ea9f4d 100644
+--- a/libiptc/libiptc.c
++++ b/libiptc/libiptc.c
+@@ -1269,7 +1269,7 @@ static int iptcc_compile_table(struct xtc_handle *h, STRUCT_REPLACE *repl)
+ 
+ /* Allocate handle of given size */
+ static struct xtc_handle *
+-alloc_handle(const char *tablename, unsigned int size, unsigned int num_rules)
++alloc_handle(STRUCT_GETINFO *infop)
+ {
+ 	struct xtc_handle *h;
+ 
+@@ -1280,14 +1280,14 @@ alloc_handle(const char *tablename, unsigned int size, unsigned int num_rules)
+ 	}
+ 	memset(h, 0, sizeof(*h));
+ 	INIT_LIST_HEAD(&h->chains);
+-	strcpy(h->info.name, tablename);
++	strcpy(h->info.name, infop->name);
+ 
+-	h->entries = malloc(sizeof(STRUCT_GET_ENTRIES) + size);
++	h->entries = malloc(sizeof(STRUCT_GET_ENTRIES) + infop->size);
+ 	if (!h->entries)
+ 		goto out_free_handle;
+ 
+-	strcpy(h->entries->name, tablename);
+-	h->entries->size = size;
++	strcpy(h->entries->name, infop->name);
++	h->entries->size = infop->size;
+ 
+ 	return h;
+ 
+@@ -1336,8 +1336,8 @@ retry:
+ 	DEBUGP("valid_hooks=0x%08x, num_entries=%u, size=%u\n",
+ 		info.valid_hooks, info.num_entries, info.size);
+ 
+-	if ((h = alloc_handle(info.name, info.size, info.num_entries))
+-	    == NULL) {
++	h = alloc_handle(&info);
++	if (h == NULL) {
+ 		close(sockfd);
+ 		return NULL;
+ 	}
+-- 
+2.21.0
+

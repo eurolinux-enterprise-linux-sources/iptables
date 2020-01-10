@@ -1,0 +1,48 @@
+From 2c7f817f6dc2d74d99248403b0ef7e36bcf060c8 Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Wed, 3 Apr 2019 20:29:38 +0200
+Subject: [PATCH] extensions: libxt_devgroup: Fix the path of the group
+ mappings file
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1657075
+Upstream Status: iptables commit 93ad9ea1b86bd
+
+commit 93ad9ea1b86bdaacffd8e33654abcea3d4e148b2
+Author: Ana Rey <anarey@gmail.com>
+Date:   Thu Sep 18 13:06:42 2014 +0200
+
+    extensions: libxt_devgroup: Fix the path of the group mappings file
+
+    Use "/etc/iproute2/group" as the default path to the mapping file
+    instead of "/etc/iproute2/group_map".
+
+    Signed-off-by: Ana Rey <anarey@gmail.com>
+    Signed-off-by: Pablo Neira Ayuso <pablo@netfilter.org>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ extensions/libxt_devgroup.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/extensions/libxt_devgroup.c b/extensions/libxt_devgroup.c
+index 4a69c8229ce4a..fb1fcb51c1bb2 100644
+--- a/extensions/libxt_devgroup.c
++++ b/extensions/libxt_devgroup.c
+@@ -31,12 +31,12 @@ static const struct xt_option_entry devgroup_opts[] = {
+ 	XTOPT_TABLEEND,
+ };
+ 
+-/* array of devgroups from /etc/iproute2/group_map */
++/* array of devgroups from /etc/iproute2/group */
+ static struct xtables_lmap *devgroups;
+ 
+ static void devgroup_init(struct xt_entry_match *match)
+ {
+-	const char file[] = "/etc/iproute2/group_map";
++	const char file[] = "/etc/iproute2/group";
+ 	devgroups = xtables_lmap_init(file);
+ 	if (devgroups == NULL && errno != ENOENT)
+ 		fprintf(stderr, "Warning: %s: %s\n", file, strerror(errno));
+-- 
+2.21.0
+

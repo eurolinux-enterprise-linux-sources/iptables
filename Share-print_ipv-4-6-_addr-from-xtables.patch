@@ -1,0 +1,216 @@
+From 7c53ed370c79027455b4e342436da507be701e23 Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Fri, 15 Mar 2019 17:51:28 +0100
+Subject: [PATCH] Share print_ipv{4,6}_addr() from xtables
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1525980
+Upstream Status: iptables commit 8da04ffdca193
+Conflicts:
+* Dropped changes to non-existing nft-ipv4.c and nft-ipv6.c.
+* Context change in xshared.{c,h}.
+
+commit 8da04ffdca1931402a6bc22c43c1a2fa1c6f1e14
+Author: Phil Sutter <phil@nwl.cc>
+Date:   Wed Sep 19 15:16:59 2018 +0200
+
+    Share print_ipv{4,6}_addr() from xtables
+
+    These functions contain code which occurs in legacy's print_firewall()
+    functions, so use them there.
+
+    Rename them to at least make clear they print more than a single
+    address.
+
+    Also introduce ipv{4,6}_addr_to_string() which take care of converting
+    an address/netmask pair into string representation in a way which
+    doesn't upset covscan (since that didn't detect that 'buf' may not be
+    exceeded by the strings written into it.
+
+    Signed-off-by: Phil Sutter <phil@nwl.cc>
+    Signed-off-by: Florian Westphal <fw@strlen.de>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ iptables/ip6tables.c | 27 +-----------------
+ iptables/iptables.c  | 25 +----------------
+ iptables/xshared.c   | 66 ++++++++++++++++++++++++++++++++++++++++++++
+ iptables/xshared.h   |  3 ++
+ 4 files changed, 71 insertions(+), 50 deletions(-)
+
+diff --git a/iptables/ip6tables.c b/iptables/ip6tables.c
+index 76e36d44f6b25..fc2fd37cfe919 100644
+--- a/iptables/ip6tables.c
++++ b/iptables/ip6tables.c
+@@ -541,7 +541,6 @@ print_firewall(const struct ip6t_entry *fw,
+ {
+ 	const struct xtables_target *target = NULL;
+ 	const struct xt_entry_target *t;
+-	char buf[BUFSIZ];
+ 
+ 	if (!ip6tc_is_chain(targname, handle))
+ 		target = xtables_find_target(targname, XTF_TRY_LOAD);
+@@ -609,31 +608,7 @@ print_firewall(const struct ip6t_entry *fw,
+ 		printf(FMT("%-6s ","out %s "), iface);
+ 	}
+ 
+-	fputc(fw->ipv6.invflags & IP6T_INV_SRCIP ? '!' : ' ', stdout);
+-	if (!memcmp(&fw->ipv6.smsk, &in6addr_any, sizeof in6addr_any)
+-	    && !(format & FMT_NUMERIC))
+-		printf(FMT("%-19s ","%s "), "anywhere");
+-	else {
+-		if (format & FMT_NUMERIC)
+-			strcpy(buf, xtables_ip6addr_to_numeric(&fw->ipv6.src));
+-		else
+-			strcpy(buf, xtables_ip6addr_to_anyname(&fw->ipv6.src));
+-		strcat(buf, xtables_ip6mask_to_numeric(&fw->ipv6.smsk));
+-		printf(FMT("%-19s ","%s "), buf);
+-	}
+-
+-	fputc(fw->ipv6.invflags & IP6T_INV_DSTIP ? '!' : ' ', stdout);
+-	if (!memcmp(&fw->ipv6.dmsk, &in6addr_any, sizeof in6addr_any)
+-	    && !(format & FMT_NUMERIC))
+-		printf(FMT("%-19s ","-> %s"), "anywhere");
+-	else {
+-		if (format & FMT_NUMERIC)
+-			strcpy(buf, xtables_ip6addr_to_numeric(&fw->ipv6.dst));
+-		else
+-			strcpy(buf, xtables_ip6addr_to_anyname(&fw->ipv6.dst));
+-		strcat(buf, xtables_ip6mask_to_numeric(&fw->ipv6.dmsk));
+-		printf(FMT("%-19s ","-> %s"), buf);
+-	}
++	print_ipv6_addresses(fw, format);
+ 
+ 	if (format & FMT_NOTABLE)
+ 		fputs("  ", stdout);
+diff --git a/iptables/iptables.c b/iptables/iptables.c
+index bac9fe0905e9f..dc70cc6e9b0ec 100644
+--- a/iptables/iptables.c
++++ b/iptables/iptables.c
+@@ -526,7 +526,6 @@ print_firewall(const struct ipt_entry *fw,
+ 	const struct xtables_target *target = NULL;
+ 	const struct xt_entry_target *t;
+ 	uint8_t flags;
+-	char buf[BUFSIZ];
+ 
+ 	if (!iptc_is_chain(targname, handle))
+ 		target = xtables_find_target(targname, XTF_TRY_LOAD);
+@@ -595,29 +594,7 @@ print_firewall(const struct ipt_entry *fw,
+ 		printf(FMT("%-6s ","out %s "), iface);
+ 	}
+ 
+-	fputc(fw->ip.invflags & IPT_INV_SRCIP ? '!' : ' ', stdout);
+-	if (fw->ip.smsk.s_addr == 0L && !(format & FMT_NUMERIC))
+-		printf(FMT("%-19s ","%s "), "anywhere");
+-	else {
+-		if (format & FMT_NUMERIC)
+-			strcpy(buf, xtables_ipaddr_to_numeric(&fw->ip.src));
+-		else
+-			strcpy(buf, xtables_ipaddr_to_anyname(&fw->ip.src));
+-		strcat(buf, xtables_ipmask_to_numeric(&fw->ip.smsk));
+-		printf(FMT("%-19s ","%s "), buf);
+-	}
+-
+-	fputc(fw->ip.invflags & IPT_INV_DSTIP ? '!' : ' ', stdout);
+-	if (fw->ip.dmsk.s_addr == 0L && !(format & FMT_NUMERIC))
+-		printf(FMT("%-19s ","-> %s"), "anywhere");
+-	else {
+-		if (format & FMT_NUMERIC)
+-			strcpy(buf, xtables_ipaddr_to_numeric(&fw->ip.dst));
+-		else
+-			strcpy(buf, xtables_ipaddr_to_anyname(&fw->ip.dst));
+-		strcat(buf, xtables_ipmask_to_numeric(&fw->ip.dmsk));
+-		printf(FMT("%-19s ","-> %s"), buf);
+-	}
++	print_ipv4_addresses(fw, format);
+ 
+ 	if (format & FMT_NOTABLE)
+ 		fputs("  ", stdout);
+diff --git a/iptables/xshared.c b/iptables/xshared.c
+index b8a81fd968361..742502154aa55 100644
+--- a/iptables/xshared.c
++++ b/iptables/xshared.c
+@@ -340,3 +340,69 @@ inline bool xs_has_arg(int argc, char *argv[])
+ 	       argv[optind][0] != '-' &&
+ 	       argv[optind][0] != '!';
+ }
++
++static const char *ipv4_addr_to_string(const struct in_addr *addr,
++				       const struct in_addr *mask,
++				       unsigned int format)
++{
++	static char buf[BUFSIZ];
++
++	if (!mask->s_addr && !(format & FMT_NUMERIC))
++		return "anywhere";
++
++	if (format & FMT_NUMERIC)
++		strncpy(buf, xtables_ipaddr_to_numeric(addr), BUFSIZ - 1);
++	else
++		strncpy(buf, xtables_ipaddr_to_anyname(addr), BUFSIZ - 1);
++	buf[BUFSIZ - 1] = '\0';
++
++	strncat(buf, xtables_ipmask_to_numeric(mask),
++		BUFSIZ - strlen(buf) - 1);
++
++	return buf;
++}
++
++void print_ipv4_addresses(const struct ipt_entry *fw, unsigned int format)
++{
++	fputc(fw->ip.invflags & IPT_INV_SRCIP ? '!' : ' ', stdout);
++	printf(FMT("%-19s ", "%s "),
++	       ipv4_addr_to_string(&fw->ip.src, &fw->ip.smsk, format));
++
++	fputc(fw->ip.invflags & IPT_INV_DSTIP ? '!' : ' ', stdout);
++	printf(FMT("%-19s ", "-> %s"),
++	       ipv4_addr_to_string(&fw->ip.dst, &fw->ip.dmsk, format));
++}
++
++static const char *ipv6_addr_to_string(const struct in6_addr *addr,
++				       const struct in6_addr *mask,
++				       unsigned int format)
++{
++	static char buf[BUFSIZ];
++
++	if (IN6_IS_ADDR_UNSPECIFIED(addr) && !(format & FMT_NUMERIC))
++		return "anywhere";
++
++	if (format & FMT_NUMERIC)
++		strncpy(buf, xtables_ip6addr_to_numeric(addr), BUFSIZ - 1);
++	else
++		strncpy(buf, xtables_ip6addr_to_anyname(addr), BUFSIZ - 1);
++	buf[BUFSIZ - 1] = '\0';
++
++	strncat(buf, xtables_ip6mask_to_numeric(mask),
++		BUFSIZ - strlen(buf) - 1);
++
++	return buf;
++}
++
++void print_ipv6_addresses(const struct ip6t_entry *fw6, unsigned int format)
++{
++	fputc(fw6->ipv6.invflags & IP6T_INV_SRCIP ? '!' : ' ', stdout);
++	printf(FMT("%-19s ", "%s "),
++	       ipv6_addr_to_string(&fw6->ipv6.src,
++				   &fw6->ipv6.smsk, format));
++
++	fputc(fw6->ipv6.invflags & IP6T_INV_DSTIP ? '!' : ' ', stdout);
++	printf(FMT("%-19s ", "-> %s"),
++	       ipv6_addr_to_string(&fw6->ipv6.dst,
++				   &fw6->ipv6.dmsk, format));
++}
+diff --git a/iptables/xshared.h b/iptables/xshared.h
+index c35dfee47577d..20dbbd12118ad 100644
+--- a/iptables/xshared.h
++++ b/iptables/xshared.h
+@@ -113,4 +113,7 @@ bool xs_has_arg(int argc, char *argv[]);
+ 
+ extern const struct xtables_afinfo *afinfo;
+ 
++void print_ipv4_addresses(const struct ipt_entry *fw, unsigned int format);
++void print_ipv6_addresses(const struct ip6t_entry *fw6, unsigned int format);
++
+ #endif /* IPTABLES_XSHARED_H */
+-- 
+2.21.0
+

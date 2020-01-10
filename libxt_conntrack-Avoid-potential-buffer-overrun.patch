@@ -1,0 +1,62 @@
+From de7ba61cf107f43223eeb640267d24e187047c29 Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Fri, 15 Mar 2019 17:51:28 +0100
+Subject: [PATCH] libxt_conntrack: Avoid potential buffer overrun
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1525980
+Upstream Status: iptables commit 8e798e050367d
+
+commit 8e798e050367dfe43bb958f11dd3170b03bda49e
+Author: Phil Sutter <phil@nwl.cc>
+Date:   Wed Sep 19 15:16:50 2018 +0200
+
+    libxt_conntrack: Avoid potential buffer overrun
+
+    In print_addr(), a resolved hostname is written into a buffer without
+    size check. Since BUFSIZ is typically 8192 bytes, this shouldn't be an
+    issue, though covscan complained about it. Fix the code by using
+    conntrack_dump_addr() as an example.
+
+    Signed-off-by: Phil Sutter <phil@nwl.cc>
+    Signed-off-by: Florian Westphal <fw@strlen.de>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ extensions/libxt_conntrack.c | 14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/extensions/libxt_conntrack.c b/extensions/libxt_conntrack.c
+index 3e7075760d40f..804aa23638ca1 100644
+--- a/extensions/libxt_conntrack.c
++++ b/extensions/libxt_conntrack.c
+@@ -673,20 +673,20 @@ static void
+ print_addr(const struct in_addr *addr, const struct in_addr *mask,
+            int inv, int numeric)
+ {
+-	char buf[BUFSIZ];
+-
+ 	if (inv)
+ 		printf(" !");
+ 
+ 	if (mask->s_addr == 0L && !numeric)
+-		printf(" %s", "anywhere");
++		printf(" anywhere");
+ 	else {
+ 		if (numeric)
+-			strcpy(buf, xtables_ipaddr_to_numeric(addr));
++			printf(" %s%s",
++			       xtables_ipaddr_to_numeric(addr),
++			       xtables_ipmask_to_numeric(mask));
+ 		else
+-			strcpy(buf, xtables_ipaddr_to_anyname(addr));
+-		strcat(buf, xtables_ipmask_to_numeric(mask));
+-		printf(" %s", buf);
++			printf(" %s%s",
++			       xtables_ipaddr_to_anyname(addr),
++			       xtables_ipmask_to_numeric(mask));
+ 	}
+ }
+ 
+-- 
+2.21.0
+

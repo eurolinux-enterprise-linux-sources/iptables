@@ -1,0 +1,259 @@
+From cc564f1b24a61d8abcd1163323ba68d373ef3d7c Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Wed, 3 Apr 2019 20:30:11 +0200
+Subject: [PATCH] xtables: Introduce and use common function to parse
+ val[/mask] arguments
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1657075
+Upstream Status: iptables commit 29b1d97764d18
+
+commit 29b1d97764d1849651388d870565b3fa815a0bd8
+Author: Serhey Popovych <serhe.popovych@gmail.com>
+Date:   Thu Mar 1 13:03:11 2018 +0200
+
+    xtables: Introduce and use common function to parse val[/mask] arguments
+
+    There are a couple of places in both core and extensions where arguments
+    in the form of val[/mask] is parsed (see XTTYPE_MARKMASK32).
+
+    In some cases symbolic name might be used which is mapped in code to
+    numeric value.
+
+    Introduce common function to handle both cases where value given is
+    either val[/mask] or symbolic name.
+
+    Signed-off-by: Serhey Popovych <serhe.popovych@gmail.com>
+    Signed-off-by: Florian Westphal <fw@strlen.de>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ extensions/libipt_realm.c   | 29 ++++++---------------
+ extensions/libxt_devgroup.c | 35 ++++---------------------
+ include/xtables.h           | 11 ++++++++
+ libxtables/xtables.c        | 52 +++++++++++++++++++++++++++++++++++++
+ libxtables/xtoptions.c      | 22 +---------------
+ 5 files changed, 77 insertions(+), 72 deletions(-)
+
+diff --git a/extensions/libipt_realm.c b/extensions/libipt_realm.c
+index fffb1218db7a6..0bfbaea0add23 100644
+--- a/extensions/libipt_realm.c
++++ b/extensions/libipt_realm.c
+@@ -34,30 +34,17 @@ static struct xtables_lmap *realms;
+ 
+ static void realm_parse(struct xt_option_call *cb)
+ {
+-	struct xt_realm_info *realminfo = cb->data;
+-	int id;
+-	char *end;
++	struct xt_realm_info *ri = cb->data;
++	unsigned int id, mask;
+ 
+ 	xtables_option_parse(cb);
+-	realminfo->id = strtoul(cb->arg, &end, 0);
+-	if (end != cb->arg && (*end == '/' || *end == '\0')) {
+-		if (*end == '/')
+-			realminfo->mask = strtoul(end+1, &end, 0);
+-		else
+-			realminfo->mask = 0xffffffff;
+-		if (*end != '\0' || end == cb->arg)
+-			xtables_error(PARAMETER_PROBLEM,
+-				   "Bad realm value \"%s\"", cb->arg);
+-	} else {
+-		id = xtables_lmap_name2id(realms, cb->arg);
+-		if (id == -1)
+-			xtables_error(PARAMETER_PROBLEM,
+-				   "Realm \"%s\" not found", cb->arg);
+-		realminfo->id = id;
+-		realminfo->mask = 0xffffffff;
+-	}
++	xtables_parse_val_mask(cb, &id, &mask, realms);
++
++	ri->id = id;
++	ri->mask = mask;
++
+ 	if (cb->invert)
+-		realminfo->invert = 1;
++		ri->invert = 1;
+ }
+ 
+ static void
+diff --git a/extensions/libxt_devgroup.c b/extensions/libxt_devgroup.c
+index ebfa2aee80cf2..604828276177b 100644
+--- a/extensions/libxt_devgroup.c
++++ b/extensions/libxt_devgroup.c
+@@ -35,49 +35,24 @@ static const char f_devgroups[] = "/etc/iproute2/group";
+ /* array of devgroups from f_devgroups[] */
+ static struct xtables_lmap *devgroups;
+ 
+-static void devgroup_parse_groupspec(const char *arg, unsigned int *group,
+-				     unsigned int *mask)
+-{
+-	char *end;
+-	bool ok;
+-
+-	ok = xtables_strtoui(arg, &end, group, 0, UINT32_MAX);
+-	if (ok && (*end == '/' || *end == '\0')) {
+-		if (*end == '/')
+-			ok = xtables_strtoui(end + 1, NULL, mask,
+-			                     0, UINT32_MAX);
+-		else
+-			*mask = ~0U;
+-		if (!ok)
+-			xtables_error(PARAMETER_PROBLEM,
+-				      "Bad group value \"%s\"", arg);
+-	} else {
+-		*group = xtables_lmap_name2id(devgroups, arg);
+-		if (*group == -1)
+-			xtables_error(PARAMETER_PROBLEM,
+-				      "Device group \"%s\" not found", arg);
+-		*mask = ~0U;
+-	}
+-}
+-
+ static void devgroup_parse(struct xt_option_call *cb)
+ {
+ 	struct xt_devgroup_info *info = cb->data;
+-	unsigned int id, mask;
++	unsigned int group, mask;
+ 
+ 	xtables_option_parse(cb);
++	xtables_parse_val_mask(cb, &group, &mask, devgroups);
++
+ 	switch (cb->entry->id) {
+ 	case O_SRC_GROUP:
+-		devgroup_parse_groupspec(cb->arg, &id, &mask);
+-		info->src_group = id;
++		info->src_group = group;
+ 		info->src_mask  = mask;
+ 		info->flags |= XT_DEVGROUP_MATCH_SRC;
+ 		if (cb->invert)
+ 			info->flags |= XT_DEVGROUP_INVERT_SRC;
+ 		break;
+ 	case O_DST_GROUP:
+-		devgroup_parse_groupspec(cb->arg, &id, &mask);
+-		info->dst_group = id;
++		info->dst_group = group;
+ 		info->dst_mask  = mask;
+ 		info->flags |= XT_DEVGROUP_MATCH_DST;
+ 		if (cb->invert)
+diff --git a/include/xtables.h b/include/xtables.h
+index 021726708b2ee..47481e693ca25 100644
+--- a/include/xtables.h
++++ b/include/xtables.h
+@@ -501,6 +501,17 @@ extern void xtables_save_string(const char *value);
+ 
+ extern void xtables_print_num(uint64_t number, unsigned int format);
+ 
++extern void xtables_parse_val_mask(struct xt_option_call *cb,
++				   unsigned int *val, unsigned int *mask,
++				   const struct xtables_lmap *lmap);
++
++static inline void xtables_parse_mark_mask(struct xt_option_call *cb,
++					   unsigned int *mark,
++					   unsigned int *mask)
++{
++	xtables_parse_val_mask(cb, mark, mask, NULL);
++}
++
+ #if defined(ALL_INCLUSIVE) || defined(NO_SHARED_LIBS)
+ #	ifdef _INIT
+ #		undef _init
+diff --git a/libxtables/xtables.c b/libxtables/xtables.c
+index 7210d3706bf26..2981f52bc767f 100644
+--- a/libxtables/xtables.c
++++ b/libxtables/xtables.c
+@@ -1950,6 +1950,58 @@ void xtables_print_num(uint64_t number, unsigned int format)
+ 	printf(FMT("%4lluT ","%lluT "), (unsigned long long)number);
+ }
+ 
++void xtables_parse_val_mask(struct xt_option_call *cb,
++			    unsigned int *val, unsigned int *mask,
++			    const struct xtables_lmap *lmap)
++{
++	char *end;
++
++	*mask = ~0U;
++
++	if (!xtables_strtoui(cb->arg, &end, val, 0, UINT32_MAX)) {
++		if (lmap)
++			goto name2val;
++		else
++			goto bad_val;
++	}
++
++	if (*end == '\0')
++		return;
++
++	if (*end != '/') {
++		if (lmap)
++			goto name2val;
++		else
++			goto garbage;
++	}
++
++	if (!xtables_strtoui(end + 1, &end, mask, 0, UINT32_MAX))
++		goto bad_val;
++
++	if (*end == '\0')
++		return;
++
++garbage:
++	xt_params->exit_err(PARAMETER_PROBLEM,
++			"%s: trailing garbage after value "
++			"for option \"--%s\".\n",
++			cb->ext_name, cb->entry->name);
++
++bad_val:
++	xt_params->exit_err(PARAMETER_PROBLEM,
++			"%s: bad integer value for option \"--%s\", "
++			"or out of range.\n",
++			cb->ext_name, cb->entry->name);
++
++name2val:
++	*val = xtables_lmap_name2id(lmap, cb->arg);
++	if ((int)*val == -1)
++		xt_params->exit_err(PARAMETER_PROBLEM,
++			"%s: could not map name %s to an integer value "
++			"for option \"--%s\".\n",
++			cb->ext_name, cb->arg, cb->entry->name);
++}
++
+ int kernel_version;
+ 
+ void get_kernel_version(void)
+diff --git a/libxtables/xtoptions.c b/libxtables/xtoptions.c
+index 1d3fda73dedf7..4bbc03ab0f047 100644
+--- a/libxtables/xtoptions.c
++++ b/libxtables/xtoptions.c
+@@ -432,27 +432,7 @@ static void xtopt_parse_tosmask(struct xt_option_call *cb)
+  */
+ static void xtopt_parse_markmask(struct xt_option_call *cb)
+ {
+-	unsigned int mark = 0, mask = ~0U;
+-	char *end;
+-
+-	if (!xtables_strtoui(cb->arg, &end, &mark, 0, UINT32_MAX))
+-		xt_params->exit_err(PARAMETER_PROBLEM,
+-			"%s: bad mark value for option \"--%s\", "
+-			"or out of range.\n",
+-			cb->ext_name, cb->entry->name);
+-	if (*end == '/' &&
+-	    !xtables_strtoui(end + 1, &end, &mask, 0, UINT32_MAX))
+-		xt_params->exit_err(PARAMETER_PROBLEM,
+-			"%s: bad mask value for option \"--%s\", "
+-			"or out of range.\n",
+-			cb->ext_name, cb->entry->name);
+-	if (*end != '\0')
+-		xt_params->exit_err(PARAMETER_PROBLEM,
+-			"%s: trailing garbage after value "
+-			"for option \"--%s\".\n",
+-			cb->ext_name, cb->entry->name);
+-	cb->val.mark = mark;
+-	cb->val.mask = mask;
++	xtables_parse_mark_mask(cb, &cb->val.mark, &cb->val.mask);
+ }
+ 
+ static int xtopt_sysloglvl_compare(const void *a, const void *b)
+-- 
+2.21.0
+

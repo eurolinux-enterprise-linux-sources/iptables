@@ -1,0 +1,51 @@
+From db1fcba4cade70fd86e615246bb03acd94cc4cd9 Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Fri, 15 Mar 2019 17:50:10 +0100
+Subject: [PATCH] libxt_sctp: fix array out of range in print_chunk
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1525980
+Upstream Status: iptables commit 71de414c21f7f
+Conflicts: Dropped changes to non-existing libxt_sctp.t.
+
+commit 71de414c21f7f31270e5d62e782e52257e5c3d06
+Author: huaibin Wang <huaibin.wang@6wind.com>
+Date:   Mon Nov 13 14:27:54 2017 +0100
+
+    libxt_sctp: fix array out of range in print_chunk
+
+    For chunk type ASCONF, ASCONF_ACK and FORWARD_TSN, sctp_chunk_names[].chunk_type
+    is not equal to the corresponding index in sctp_chunk_names[]. Using this field
+    leads to a segmentation fault (index out of range).
+
+    Example
+    $ iptables -A INPUT -p sctp --chunk-type all ASCONF,ASCONF_ACK,FORWARD_TSN -j ACCEPT
+    $ iptables -L
+    Chain INPUT (policy ACCEPT)
+    target     prot opt source               destination
+    Segmentation fault
+
+    Signed-off-by: huaibin Wang <huaibin.wang@6wind.com>
+    Signed-off-by: Nicolas Dichtel <nicolas.dichtel@6wind.com>
+    Signed-off-by: Pablo Neira Ayuso <pablo@netfilter.org>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ extensions/libxt_sctp.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/extensions/libxt_sctp.c b/extensions/libxt_sctp.c
+index 56a4cdf229390..cfd4c12330479 100644
+--- a/extensions/libxt_sctp.c
++++ b/extensions/libxt_sctp.c
+@@ -370,7 +370,7 @@ print_chunk(uint32_t chunknum, int numeric)
+ 
+ 		for (i = 0; i < ARRAY_SIZE(sctp_chunk_names); ++i)
+ 			if (sctp_chunk_names[i].chunk_type == chunknum)
+-				printf("%s", sctp_chunk_names[chunknum].name);
++				printf("%s", sctp_chunk_names[i].name);
+ 	}
+ }
+ 
+-- 
+2.21.0
+

@@ -1,0 +1,165 @@
+From 7fcb3a907824af6220007d91ef49095f990b1733 Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Wed, 3 Apr 2019 20:15:52 +0200
+Subject: [PATCH] Consolidate DEBUGP macros
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1668475
+Upstream Status: iptables commit 78b9d438037f2
+Conflicts:
+* Context change due to missing commit 2963a8df2175b
+  ("iptables: Remove explicit static variables initalization.")
+* Dropped changes to non-existing files iptables/nft-shared.h and
+  iptables/xtables-restore.c.
+
+commit 78b9d438037f2c83a7bbb73eb1b86cc295967905
+Author: Phil Sutter <phil@nwl.cc>
+Date:   Thu Aug 2 17:05:15 2018 +0200
+
+    Consolidate DEBUGP macros
+
+    This debug printing macro was defined in various places, always
+    identical. Move it into xshared.h and drop it from sources including
+    that header. There are a few exceptions:
+
+    * iptables-xml.c did not include xshared.h, which this patch changes.
+
+    * Sources in extensions and libiptc mostly left alone since they don't
+      include xshared.h (and maybe shouldn't). Only libxt_set.h does, so
+      it's converted, too.
+
+    This also converts DEBUG define use in libip6t_hbh.c to avoid a compiler
+    warning.
+
+    Signed-off-by: Phil Sutter <phil@nwl.cc>
+    Signed-off-by: Florian Westphal <fw@strlen.de>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ extensions/libip6t_hbh.c     | 6 ++----
+ extensions/libxt_set.h       | 6 ------
+ iptables/ip6tables-restore.c | 6 ------
+ iptables/iptables-restore.c  | 6 ------
+ iptables/iptables-xml.c      | 7 +------
+ iptables/xshared.h           | 6 ++++++
+ 6 files changed, 9 insertions(+), 28 deletions(-)
+
+diff --git a/extensions/libip6t_hbh.c b/extensions/libip6t_hbh.c
+index c0389ed8bafde..1c49ee71ada13 100644
+--- a/extensions/libip6t_hbh.c
++++ b/extensions/libip6t_hbh.c
+@@ -5,8 +5,6 @@
+ #include <xtables.h>
+ #include <linux/netfilter_ipv6/ip6t_opts.h>
+ 
+-#define DEBUG		0
+-
+ enum {
+ 	O_HBH_LEN = 0,
+ 	O_HBH_OPTS,
+@@ -83,7 +81,7 @@ parse_options(const char *optsstr, uint16_t *opts)
+                         opts[i] |= (0x00FF);
+ 		}
+ 
+-#if DEBUG
++#ifdef DEBUG
+ 		printf("opts str: %s %s\n", cp, range);
+ 		printf("opts opt: %04X\n", opts[i]);
+ #endif
+@@ -92,7 +90,7 @@ parse_options(const char *optsstr, uint16_t *opts)
+ 
+ 	free(buffer);
+ 
+-#if DEBUG
++#ifdef DEBUG
+ 	printf("addr nr: %d\n", i);
+ #endif
+ 
+diff --git a/extensions/libxt_set.h b/extensions/libxt_set.h
+index 5a1bdcf730cf2..41dfbd30fc7c1 100644
+--- a/extensions/libxt_set.h
++++ b/extensions/libxt_set.h
+@@ -8,12 +8,6 @@
+ #include <errno.h>
+ #include "../iptables/xshared.h"
+ 
+-#ifdef DEBUG
+-#define DEBUGP(x, args...) fprintf(stderr, x , ## args)
+-#else
+-#define DEBUGP(x, args...) 
+-#endif
+-
+ static int
+ get_version(unsigned *version)
+ {
+diff --git a/iptables/ip6tables-restore.c b/iptables/ip6tables-restore.c
+index fdcc0cb5b2c06..611430d930eda 100644
+--- a/iptables/ip6tables-restore.c
++++ b/iptables/ip6tables-restore.c
+@@ -20,12 +20,6 @@
+ #include "libiptc/libip6tc.h"
+ #include "ip6tables-multi.h"
+ 
+-#ifdef DEBUG
+-#define DEBUGP(x, args...) fprintf(stderr, x, ## args)
+-#else
+-#define DEBUGP(x, args...)
+-#endif
+-
+ static int binary = 0, counters = 0, verbose = 0, noflush = 0, wait = 0;
+ 
+ static struct timeval wait_interval = {
+diff --git a/iptables/iptables-restore.c b/iptables/iptables-restore.c
+index 5a8c2c738bb0f..b0da96d45d297 100644
+--- a/iptables/iptables-restore.c
++++ b/iptables/iptables-restore.c
+@@ -17,12 +17,6 @@
+ #include "libiptc/libiptc.h"
+ #include "iptables-multi.h"
+ 
+-#ifdef DEBUG
+-#define DEBUGP(x, args...) fprintf(stderr, x, ## args)
+-#else
+-#define DEBUGP(x, args...)
+-#endif
+-
+ static int binary = 0, counters = 0, verbose = 0, noflush = 0, wait = 0;
+ 
+ static struct timeval wait_interval = {
+diff --git a/iptables/iptables-xml.c b/iptables/iptables-xml.c
+index 92a5768f86903..c523a132b2240 100644
+--- a/iptables/iptables-xml.c
++++ b/iptables/iptables-xml.c
+@@ -16,12 +16,7 @@
+ #include "libiptc/libiptc.h"
+ #include "xtables-multi.h"
+ #include <xtables.h>
+-
+-#ifdef DEBUG
+-#define DEBUGP(x, args...) fprintf(stderr, x, ## args)
+-#else
+-#define DEBUGP(x, args...)
+-#endif
++#include "xshared.h"
+ 
+ struct xtables_globals iptables_xml_globals = {
+ 	.option_offset = 0,
+diff --git a/iptables/xshared.h b/iptables/xshared.h
+index 20dbbd12118ad..bfdb10b2701e5 100644
+--- a/iptables/xshared.h
++++ b/iptables/xshared.h
+@@ -9,6 +9,12 @@
+ #include <linux/netfilter_ipv4/ip_tables.h>
+ #include <linux/netfilter_ipv6/ip6_tables.h>
+ 
++#ifdef DEBUG
++#define DEBUGP(x, args...) fprintf(stdout, x, ## args)
++#else
++#define DEBUGP(x, args...)
++#endif
++
+ enum {
+ 	OPT_NONE        = 0,
+ 	OPT_NUMERIC     = 1 << 0,
+-- 
+2.21.0
+

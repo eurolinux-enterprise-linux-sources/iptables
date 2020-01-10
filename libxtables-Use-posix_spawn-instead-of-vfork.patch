@@ -1,0 +1,71 @@
+From fbcd6c97015324480f843c08da338c9d580b2b31 Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Fri, 15 Mar 2019 17:51:28 +0100
+Subject: [PATCH] libxtables: Use posix_spawn() instead of vfork()
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1525980
+Upstream Status: iptables commit d95c1e8b65c4e
+
+commit d95c1e8b65c4ec66b8fcd2f7ede257853a888750
+Author: Phil Sutter <phil@nwl.cc>
+Date:   Wed Sep 19 15:17:05 2018 +0200
+
+    libxtables: Use posix_spawn() instead of vfork()
+
+    According to covscan, vfork() may lead to a deadlock in the parent
+    process. It suggests to use posix_spawn() instead. Since the latter
+    combines vfork() and exec() calls, use it for xtables_insmod().
+
+    Signed-off-by: Phil Sutter <phil@nwl.cc>
+    Signed-off-by: Florian Westphal <fw@strlen.de>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ libxtables/xtables.c | 15 +++++----------
+ 1 file changed, 5 insertions(+), 10 deletions(-)
+
+diff --git a/libxtables/xtables.c b/libxtables/xtables.c
+index bca9863acc566..7210d3706bf26 100644
+--- a/libxtables/xtables.c
++++ b/libxtables/xtables.c
+@@ -21,6 +21,7 @@
+ #include <fcntl.h>
+ #include <inttypes.h>
+ #include <netdb.h>
++#include <spawn.h>
+ #include <stdarg.h>
+ #include <stdbool.h>
+ #include <stdio.h>
+@@ -343,6 +344,7 @@ int xtables_insmod(const char *modname, const char *modprobe, bool quiet)
+ 	char *buf = NULL;
+ 	char *argv[4];
+ 	int status;
++	pid_t pid;
+ 
+ 	/* If they don't explicitly set it, read out of kernel */
+ 	if (!modprobe) {
+@@ -363,18 +365,11 @@ int xtables_insmod(const char *modname, const char *modprobe, bool quiet)
+ 	 */
+ 	fflush(stdout);
+ 
+-	switch (vfork()) {
+-	case 0:
+-		execv(argv[0], argv);
+-
+-		/* not usually reached */
+-		_exit(1);
+-	case -1:
++	if (posix_spawn(&pid, argv[0], NULL, NULL, argv, NULL)) {
+ 		free(buf);
+ 		return -1;
+-
+-	default: /* parent */
+-		wait(&status);
++	} else {
++		waitpid(pid, &status, 0);
+ 	}
+ 
+ 	free(buf);
+-- 
+2.21.0
+

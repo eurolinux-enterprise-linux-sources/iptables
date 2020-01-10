@@ -1,0 +1,70 @@
+From 5527530396afccc43fddedbe6fdf1b4c6000b516 Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Fri, 15 Mar 2019 17:49:11 +0100
+Subject: [PATCH] Mark fall through cases in switch() statements
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1525980
+Upstream Status: iptables commit 1788f545aae28
+Conflicts: Dropped changes to non-existing libebt_log.c, nft-shared.c
+           and revision 4 of libxt_set.c.
+
+commit 1788f545aae285fa3cd6595d5d25b2ae1b215282
+Author: Phil Sutter <phil@nwl.cc>
+Date:   Wed Sep 19 15:16:45 2018 +0200
+
+    Mark fall through cases in switch() statements
+
+    Typical covscan complaint, non-empty fall throughs should be marked as
+    such. There was but a single case which should break instead, namely in
+    libebt_log.c: It is not critical, since the next case merely asserts
+    'invert' being zero (which can't be as it was checked before). But while
+    being at it, introduce log_chk_inv() to consolidate the semantically
+    equal cases for the various log types.
+
+    Signed-off-by: Phil Sutter <phil@nwl.cc>
+    Signed-off-by: Florian Westphal <fw@strlen.de>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ extensions/libxt_set.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/extensions/libxt_set.c b/extensions/libxt_set.c
+index 2cb9e78a85f97..ec826367d6631 100644
+--- a/extensions/libxt_set.c
++++ b/extensions/libxt_set.c
+@@ -60,6 +60,7 @@ set_parse_v0(int c, char **argv, int invert, unsigned int *flags,
+ 	case '2':
+ 		fprintf(stderr,
+ 			"--set option deprecated, please use --match-set\n");
++		/* fall through */
+ 	case '1':		/* --match-set <set> <flag>[,<flag> */
+ 		if (info->u.flags[0])
+ 			xtables_error(PARAMETER_PROBLEM,
+@@ -140,6 +141,7 @@ set_parse_v1(int c, char **argv, int invert, unsigned int *flags,
+ 	case '2':
+ 		fprintf(stderr,
+ 			"--set option deprecated, please use --match-set\n");
++		/* fall through */
+ 	case '1':		/* --match-set <set> <flag>[,<flag> */
+ 		if (info->dim)
+ 			xtables_error(PARAMETER_PROBLEM,
+@@ -238,6 +240,7 @@ set_parse_v2(int c, char **argv, int invert, unsigned int *flags,
+ 	case '2':
+ 		fprintf(stderr,
+ 			"--set option deprecated, please use --match-set\n");
++		/* fall through */
+ 	case '1':		/* --match-set <set> <flag>[,<flag> */
+ 		if (info->dim)
+ 			xtables_error(PARAMETER_PROBLEM,
+@@ -415,6 +418,7 @@ set_parse_v3(int c, char **argv, int invert, unsigned int *flags,
+ 	case '2':
+ 		fprintf(stderr,
+ 			"--set option deprecated, please use --match-set\n");
++		/* fall through */
+ 	case '1':		/* --match-set <set> <flag>[,<flag> */
+ 		if (info->match_set.dim)
+ 			xtables_error(PARAMETER_PROBLEM,
+-- 
+2.21.0
+

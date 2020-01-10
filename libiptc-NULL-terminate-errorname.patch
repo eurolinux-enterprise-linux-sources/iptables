@@ -1,0 +1,44 @@
+From 9dfd443c3828a3e9a3cf5cf2afb9f0324bacb19a Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Fri, 15 Mar 2019 17:51:28 +0100
+Subject: [PATCH] libiptc: NULL-terminate errorname
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1525980
+Upstream Status: iptables commit a76ba54e28337
+
+commit a76ba54e2833761c46fd57cbe2486cbc38686717
+Author: Phil Sutter <phil@nwl.cc>
+Date:   Mon Sep 24 19:25:22 2018 +0200
+
+    libiptc: NULL-terminate errorname
+
+    In struct chain_head, field 'name' is of size TABLE_MAXNAMELEN, hence
+    copying its content into 'error_name' field of struct xt_error_target
+    which is two bytes shorter may overflow. Make sure this doesn't happen
+    by using strncpy() and set the last byte to zero.
+
+    Signed-off-by: Phil Sutter <phil@nwl.cc>
+    Signed-off-by: Florian Westphal <fw@strlen.de>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ libiptc/libiptc.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/libiptc/libiptc.c b/libiptc/libiptc.c
+index f6a9862ea9f4d..d2427c16a5254 100644
+--- a/libiptc/libiptc.c
++++ b/libiptc/libiptc.c
+@@ -1149,7 +1149,8 @@ static int iptcc_compile_chain(struct xtc_handle *h, STRUCT_REPLACE *repl, struc
+ 		strcpy(head->name.target.u.user.name, ERROR_TARGET);
+ 		head->name.target.u.target_size =
+ 				ALIGN(sizeof(struct xt_error_target));
+-		strcpy(head->name.errorname, c->name);
++		strncpy(head->name.errorname, c->name, XT_FUNCTION_MAXNAMELEN);
++		head->name.errorname[XT_FUNCTION_MAXNAMELEN - 1] = '\0';
+ 	} else {
+ 		repl->hook_entry[c->hooknum-1] = c->head_offset;
+ 		repl->underflow[c->hooknum-1] = c->foot_offset;
+-- 
+2.21.0
+

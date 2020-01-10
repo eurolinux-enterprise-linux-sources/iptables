@@ -1,0 +1,54 @@
+From 61fd4ee73f2a23eeb2b10b24d19ac13deaf0c177 Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Fri, 15 Mar 2019 17:51:28 +0100
+Subject: [PATCH] libxt_recent: Remove ineffective checks for info->name
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1525980
+Upstream Status: iptables commit d0e3d95fa3442
+
+commit d0e3d95fa3442c6ff32f7fed3e0d2eeb2248ef9f
+Author: Phil Sutter <phil@nwl.cc>
+Date:   Fri Oct 20 13:24:36 2017 +0200
+
+    libxt_recent: Remove ineffective checks for info->name
+
+    In struct xt_recent_mtinfo{,_v1}, field 'name' is an array, not a
+    pointer. So there is no point in comparing it against NULL. Changing the
+    check to make sure it's content is not an empty string is pointless
+    either, since a non-empty default string is used and the argument parser
+    will refuse empty strings as --name argument. So simply get rid of the
+    checks altogether.
+
+    Signed-off-by: Phil Sutter <phil@nwl.cc>
+    Signed-off-by: Florian Westphal <fw@strlen.de>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ extensions/libxt_recent.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/extensions/libxt_recent.c b/extensions/libxt_recent.c
+index e1801f1c18952..055ae35080346 100644
+--- a/extensions/libxt_recent.c
++++ b/extensions/libxt_recent.c
+@@ -199,7 +199,7 @@ static void recent_print(const void *ip, const struct xt_entry_match *match,
+ 	if(info->hit_count) printf(" hit_count: %d", info->hit_count);
+ 	if (info->check_set & XT_RECENT_TTL)
+ 		printf(" TTL-Match");
+-	if(info->name) printf(" name: %s", info->name);
++	printf(" name: %s", info->name);
+ 	if (info->side == XT_RECENT_SOURCE)
+ 		printf(" side: source");
+ 	if (info->side == XT_RECENT_DEST)
+@@ -239,7 +239,7 @@ static void recent_save(const void *ip, const struct xt_entry_match *match,
+ 	if(info->hit_count) printf(" --hitcount %d", info->hit_count);
+ 	if (info->check_set & XT_RECENT_TTL)
+ 		printf(" --rttl");
+-	if(info->name) printf(" --name %s",info->name);
++	printf(" --name %s",info->name);
+ 
+ 	switch(family) {
+ 	case NFPROTO_IPV4:
+-- 
+2.21.0
+

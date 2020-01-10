@@ -1,0 +1,50 @@
+From c923062439297cbf5b08429123ba214b4efc8798 Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Fri, 15 Mar 2019 17:50:34 +0100
+Subject: [PATCH] libxt_conntrack: Version 0 does not support
+ XT_CONNTRACK_DIRECTION
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1525980
+Upstream Status: iptables commit 74eb2395c8384
+
+commit 74eb2395c838460384286c2b95f711ae275a46cb
+Author: Phil Sutter <phil@nwl.cc>
+Date:   Wed Sep 19 15:16:49 2018 +0200
+
+    libxt_conntrack: Version 0 does not support XT_CONNTRACK_DIRECTION
+
+    Since sinfo->flags is only 8 bytes large, checking for
+    XT_CONNTRACK_DIRECTION bit (which has value 1 << 12) will always return
+    false, so drop this dead code.
+
+    Fixes: c7fc1dae1e8f8 ("libxt_conntrack: dump ctdir")
+    Signed-off-by: Phil Sutter <phil@nwl.cc>
+    Signed-off-by: Florian Westphal <fw@strlen.de>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ extensions/libxt_conntrack.c | 8 --------
+ 1 file changed, 8 deletions(-)
+
+diff --git a/extensions/libxt_conntrack.c b/extensions/libxt_conntrack.c
+index 128bbd20a34c2..3e7075760d40f 100644
+--- a/extensions/libxt_conntrack.c
++++ b/extensions/libxt_conntrack.c
+@@ -774,14 +774,6 @@ matchinfo_print(const void *ip, const struct xt_entry_match *match, int numeric,
+         	else
+ 			printf("%lu:%lu", sinfo->expires_min, sinfo->expires_max);
+ 	}
+-
+-	if (sinfo->flags & XT_CONNTRACK_DIRECTION) {
+-		if (sinfo->invflags & XT_CONNTRACK_DIRECTION)
+-			printf(" %sctdir REPLY", optpfx);
+-		else
+-			printf(" %sctdir ORIGINAL", optpfx);
+-	}
+-
+ }
+ 
+ static void
+-- 
+2.21.0
+

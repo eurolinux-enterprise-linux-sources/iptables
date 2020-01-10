@@ -1,0 +1,46 @@
+From 9db248f030af87e336b5880fc39e37a5beb7f291 Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Fri, 15 Mar 2019 17:52:42 +0100
+Subject: [PATCH] list: fix prefetch dummy
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1525980
+Upstream Status: iptables commit 86a65af62b6b9
+
+commit 86a65af62b6b986aa2ae3cbf3c655ea8225b027a
+Author: Arturo Borrero <arturo.borrero.glez@gmail.com>
+Date:   Mon Apr 6 20:05:41 2015 +0200
+
+    list: fix prefetch dummy
+
+    linux_list.h:381:59: warning: right-hand operand of comma expression has no effect [-Wunused-value]
+      for (pos = list_entry((head)->next, typeof(*pos), member), \
+                                                               ^
+    libiptc.c:552:2: note: in expansion of macro 'list_for_each_entry'
+      list_for_each_entry(c, &h->chains, list) {
+      ^
+
+    [ Patch copied from one similar of Patrick McHardy on libnftnl ]
+
+    Signed-off-by: Arturo Borrero Gonzalez <arturo.borrero.glez@gmail.com>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ libiptc/linux_list.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/libiptc/linux_list.h b/libiptc/linux_list.h
+index abdcf88dadd64..559e33c9ebde0 100644
+--- a/libiptc/linux_list.h
++++ b/libiptc/linux_list.h
+@@ -27,7 +27,7 @@
+ 	1; \
+ })
+ 
+-#define prefetch(x)		1
++#define prefetch(x)		((void)0)
+ 
+ /* empty define to make this work in userspace -HW */
+ #define smp_wmb()
+-- 
+2.21.0
+

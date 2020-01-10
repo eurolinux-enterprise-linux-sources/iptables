@@ -43,14 +43,8 @@ if [ ! -x /sbin/$IPTABLES ]; then
     exit 5
 fi
 
-# Old or new modutils
-/sbin/modprobe --version 2>&1 | grep -q 'kmod version' \
-    && NEW_MODUTILS=1 \
-    || NEW_MODUTILS=0
-
 # Default firewall configuration:
 IPTABLES_MODULES=""
-IPTABLES_MODULES_UNLOAD="yes"
 IPTABLES_SAVE_ON_STOP="no"
 IPTABLES_SAVE_ON_RESTART="no"
 IPTABLES_SAVE_COUNTER="no"
@@ -63,10 +57,6 @@ IPTABLES_RESTORE_WAIT_INTERVAL=1000000
 
 # Load firewall configuration.
 [ -f "$IPTABLES_CONFIG" ] && . "$IPTABLES_CONFIG"
-
-# Netfilter modules
-NF_MODULES=($(lsmod | awk "/^${IPV}table_/ {print \$1}") ${IPV}_tables)
-NF_MODULES_COMMON=(x_tables nf_nat nf_conntrack) # Used by netfilter v4 and v6
 
 # Get active tables
 NF_TABLES=$(cat "$PROC_IPTABLES_NAMES" 2>/dev/null)
@@ -82,38 +72,6 @@ if [ $IPTABLES_RESTORE_WAIT -ne 0 ]; then
 	IPTABLES_CMD+=" $OPT"
 	IPTABLES_RESTORE_CMD+=" $OPT"
 fi
-
-rmmod_r() {
-    # Unload module with all referring modules.
-    # At first all referring modules will be unloaded, then the module itself.
-    local mod=$1
-    local ret=0
-    local ref=
-
-    # Get referring modules.
-    # New modutils have another output format.
-    [ $NEW_MODUTILS = 1 ] \
-	&& ref=$(lsmod | awk "/^${mod}/ { print \$4; }" | tr ',' ' ') \
-	|| ref=$(lsmod | grep ^${mod} | cut -d "[" -s -f 2 | cut -d "]" -s -f 1)
-
-    # recursive call for all referring modules
-    for i in $ref; do
-	rmmod_r $i
-	let ret+=$?;
-    done
-
-    # Unload module.
-    # The extra test is for 2.6: The module might have autocleaned,
-    # after all referring modules are unloaded.
-    if grep -q "^${mod}" /proc/modules ; then
-	modprobe -r $mod > /dev/null 2>&1
-	res=$?
-	[ $res -eq 0 ] || echo -n " $mod"
-	let ret+=$res;
-    fi
-
-    return $ret
-}
 
 flush_n_delete() {
     local ret=0
@@ -290,23 +248,6 @@ stop() {
     flush_n_delete
     let ret+=$?
     
-    if [ "x$IPTABLES_MODULES_UNLOAD" = "xyes" ]; then
-	echo -n $"${IPTABLES}: Unloading modules: "
-	ret2=0
-	for mod in ${NF_MODULES[*]}; do
-	    rmmod_r $mod
-	    let ret2+=$?;
-	done
-	# try to unload remaining netfilter modules used by ipv4 and ipv6 
-	# netfilter
-	for mod in ${NF_MODULES_COMMON[*]}; do
-	    rmmod_r $mod >/dev/null
-	done
-	[ $ret2 -eq 0 ] && success || failure
-	echo
-        let ret+=$ret2
-    fi
-    
     rm -f $VAR_SUBSYS_IPTABLES
     return $ret
 }
@@ -357,7 +298,7 @@ save() {
 }
 
 status() {
-    if [ ! -f "$VAR_SUBSYS_IPTABLES" -a -z "$NF_TABLES" ]; then
+    if [ ! -f "$VAR_SUBSYS_IPTABLES" ] && [ -z "$NF_TABLES" ]; then
 	echo $"${IPTABLES}: Firewall is not running."
 	return 3
     fi
@@ -378,7 +319,7 @@ status() {
 
     NUM=
     [ "x$IPTABLES_STATUS_NUMERIC" = "xyes" ] && NUM="-n"
-    VERBOSE= 
+    VERBOSE=
     [ "x$IPTABLES_STATUS_VERBOSE" = "xyes" ] && VERBOSE="--verbose"
     COUNT=
     [ "x$IPTABLES_STATUS_LINENUMBERS" = "xyes" ] && COUNT="--line-numbers"

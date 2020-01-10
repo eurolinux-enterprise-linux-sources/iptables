@@ -1,0 +1,42 @@
+From 6052b28839968d5077c182e6defa260e68147547 Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Fri, 15 Mar 2019 17:50:10 +0100
+Subject: [PATCH] libxtables: Don't read garbage in xtables_strtoui()
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1525980
+Upstream Status: iptables commit 61ebf3f72ac62
+
+commit 61ebf3f72ac62d887414c50fc83e277386f54e8f
+Author: Phil Sutter <phil@nwl.cc>
+Date:   Wed Sep 19 15:16:55 2018 +0200
+
+    libxtables: Don't read garbage in xtables_strtoui()
+
+    If xtables_strtoul() fails, it returns false and data pointed to by
+    parameter 'value' is undefined. Hence avoid copying that data in
+    xtables_strtoui() if the call failed.
+
+    Signed-off-by: Phil Sutter <phil@nwl.cc>
+    Signed-off-by: Florian Westphal <fw@strlen.de>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ libxtables/xtables.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/libxtables/xtables.c b/libxtables/xtables.c
+index fb60c01b48c05..575f7ee0a0d78 100644
+--- a/libxtables/xtables.c
++++ b/libxtables/xtables.c
+@@ -473,7 +473,7 @@ bool xtables_strtoui(const char *s, char **end, unsigned int *value,
+ 	bool ret;
+ 
+ 	ret = xtables_strtoul(s, end, &v, min, max);
+-	if (value != NULL)
++	if (ret && value != NULL)
+ 		*value = v;
+ 	return ret;
+ }
+-- 
+2.21.0
+

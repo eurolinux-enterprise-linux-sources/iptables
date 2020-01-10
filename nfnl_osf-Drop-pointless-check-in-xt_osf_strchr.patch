@@ -1,0 +1,43 @@
+From 4103f34690e1380c0ad4831b80ad913ea980eab4 Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Fri, 15 Mar 2019 17:51:28 +0100
+Subject: [PATCH] nfnl_osf: Drop pointless check in xt_osf_strchr()
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1525980
+Upstream Status: iptables commit 8c786a351a441
+
+commit 8c786a351a441ff23ad5d9d1da8cec492f88f542
+Author: Phil Sutter <phil@nwl.cc>
+Date:   Wed Sep 19 15:16:42 2018 +0200
+
+    nfnl_osf: Drop pointless check in xt_osf_strchr()
+
+    Although it remains unclear what the original intention behind the
+    affected code was, but 'tmp + 1' always evaluates true since 'tmp' is a
+    pointer value.
+
+    Cc: Evgeniy Polyakov <johnpol@2ka.mxt.ru>
+    Signed-off-by: Phil Sutter <phil@nwl.cc>
+    Signed-off-by: Florian Westphal <fw@strlen.de>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ utils/nfnl_osf.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/utils/nfnl_osf.c b/utils/nfnl_osf.c
+index 0f8b35b805016..9a9fbe1268155 100644
+--- a/utils/nfnl_osf.c
++++ b/utils/nfnl_osf.c
+@@ -141,7 +141,7 @@ static char *xt_osf_strchr(char *ptr, char c)
+ 	if (tmp)
+ 		*tmp = '\0';
+ 
+-	while (tmp && tmp + 1 && isspace(*(tmp + 1)))
++	while (tmp && isspace(*(tmp + 1)))
+ 		tmp++;
+ 
+ 	return tmp;
+-- 
+2.21.0
+

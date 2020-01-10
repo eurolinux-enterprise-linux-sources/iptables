@@ -1,0 +1,42 @@
+From a7bb46f478443597a7e97e81adb13d9619f4b1a7 Mon Sep 17 00:00:00 2001
+From: Phil Sutter <psutter@redhat.com>
+Date: Fri, 15 Mar 2019 17:51:28 +0100
+Subject: [PATCH] libxt_LED: Avoid string overrun while parsing led-trigger-id
+
+Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1525980
+Upstream Status: iptables commit d0c1f1b4ad4e3
+
+commit d0c1f1b4ad4e3b91220a03514031ee879db832d0
+Author: Phil Sutter <phil@nwl.cc>
+Date:   Wed Sep 19 15:16:48 2018 +0200
+
+    libxt_LED: Avoid string overrun while parsing led-trigger-id
+
+    Instead of using strcat() and assuming the name will fit, print into the
+    buffer using snprintf() which truncates the string as needed.
+
+    Signed-off-by: Phil Sutter <phil@nwl.cc>
+    Signed-off-by: Florian Westphal <fw@strlen.de>
+
+Signed-off-by: Phil Sutter <psutter@redhat.com>
+---
+ extensions/libxt_LED.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/extensions/libxt_LED.c b/extensions/libxt_LED.c
+index 8622c379e68bc..6ada795056431 100644
+--- a/extensions/libxt_LED.c
++++ b/extensions/libxt_LED.c
+@@ -53,8 +53,7 @@ static void LED_parse(struct xt_option_call *cb)
+ 	xtables_option_parse(cb);
+ 	switch (cb->entry->id) {
+ 	case O_LED_TRIGGER_ID:
+-		strcpy(led->id, "netfilter-");
+-		strcat(led->id, cb->arg);
++		snprintf(led->id, sizeof(led->id), "netfilter-%s", cb->arg);
+ 		break;
+ 	case O_LED_DELAY:
+ 		if (strncasecmp(cb->arg, "inf", 3) == 0)
+-- 
+2.21.0
+
